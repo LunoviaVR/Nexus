@@ -1,0 +1,78 @@
+# Builds, signs and drafts a GitHub release whenever a version tag (v1.2.3) is pushed.
+#
+# Needs two repository secrets (Settings → Secrets and variables → Actions):
+#   TAURI_SIGNING_PRIVATE_KEY           contents of the updater private key file
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password (leave empty if it has none)
+#
+# Release notes are taken from docs/releases/<tag>.md when that file exists.
+# The release is created as a draft: review it, then publish it so installed copies see the update.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  # SQLCipher's vendored OpenSSL needs a Windows Perl; the runner ships Strawberry Perl.
+  PERL: C:\Strawberry\perl\bin\perl.exe
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: cargo test --lib
+        working-directory: src-tauri
+
+  release:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - run: npm ci
+
+      - name: Read release notes
+        id: notes
+        shell: pwsh
+        run: |
+          $file = "docs/releases/${{ github.ref_name }}.md"
+          $body = if (Test-Path $file) { Get-Content $file -Raw } else { "Download **Nexus_*_x64-setup.exe** below to install." }
+          $delim = "NOTES_$([guid]::NewGuid().ToString('N'))"
+          "body<<$delim`n$body`n$delim" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Nexus ${{ github.ref_name }}
+          releaseBody: ${{ steps.notes.outputs.body }}
+          releaseDraft: true
+          prerelease: false
+          # latest.json points the in-app updater at the NSIS installer.
+          updaterJsonPreferNsis: true

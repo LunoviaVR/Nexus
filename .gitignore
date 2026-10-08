@@ -1,0 +1,12 @@
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/schemas/
+*.log
+.DS_Store
+
+# Local tooling and secrets: never commit these
+.claude/
+*.key
+*.key.pub
+.env

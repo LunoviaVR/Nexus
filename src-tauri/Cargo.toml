@@ -1,0 +1,51 @@
+[package]
+name = "nexus"
+version = "1.0.0"
+description = "A modern VRChat companion app"
+edition = "2021"
+rust-version = "1.82"
+
+[lib]
+name = "nexus_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-notification = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-window-state = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+tokio = { version = "1", features = ["time", "sync", "macros", "rt-multi-thread"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "gzip", "multipart"] }
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
+futures-util = "0.3"
+# SQLCipher: the database is encrypted at rest. Building OpenSSL needs a Windows Perl (Strawberry Perl).
+rusqlite = { version = "0.32", features = ["bundled-sqlcipher-vendored-openssl"] }
+keyring = { version = "3", features = ["windows-native"] }
+regex = "1"
+chrono = "0.4"
+thiserror = "2"
+base64 = "0.22"
+urlencoding = "2"
+parking_lot = "0.12"
+sha2 = "0.10"
+aes-gcm = "0.10"
+getrandom = "0.2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

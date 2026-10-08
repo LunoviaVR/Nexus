@@ -1,0 +1,21 @@
+2024.01.15 20:31:00 Log        -  [Behaviour] Destination requested: wrld_4cf554b4-430c-4f8f-b53e-1f294eed230b:57893~region(eu)
+
+2024.01.15 20:31:02 Log        -  [Behaviour] Entering Room: The Black Cat
+
+2024.01.15 20:31:03 Log        -  [Behaviour] Joining wrld_4cf554b4-430c-4f8f-b53e-1f294eed230b:57893~region(eu)
+
+2024.01.15 20:31:04 Log        -  [Network] Connected to master
+
+2024.01.15 20:31:05 Log        -  [Behaviour] OnPlayerJoined Some Player (usr_a1b2c3d4-0000-1111-2222-333344445555)
+
+2024.01.15 20:31:05 Log        -  [Behaviour] OnPlayerJoined Old Format Name
+
+2024.01.15 20:32:10 Log        -  [Behaviour] Switching Some Player to avatar Cool Fox
+
+2024.01.15 20:35:00 Log        -  [Video Playback] Attempting to resolve URL 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+
+2024.01.15 20:40:00 Log        -  [Behaviour] OnPlayerLeftRoom
+
+2024.01.15 20:40:01 Log        -  [Behaviour] OnPlayerLeft Some Player (usr_a1b2c3d4-0000-1111-2222-333344445555)
+
+2024.01.15 20:41:00 Log        -  [Behaviour] OnLeftRoom

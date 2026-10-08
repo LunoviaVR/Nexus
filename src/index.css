@@ -1,0 +1,134 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+
+:root {
+  --accent-h: 290;
+  --bg: oklch(0.16 0.012 275);
+  --panel: oklch(0.2 0.014 275);
+  --panel-2: oklch(0.235 0.016 275);
+  --hover: oklch(0.27 0.018 275);
+  --line: oklch(0.32 0.016 275 / 0.75);
+  --fg: oklch(0.965 0.004 275);
+  --muted: oklch(0.74 0.014 275);
+  --subtle: oklch(0.58 0.016 275);
+  --accent: oklch(0.7 0.17 var(--accent-h));
+  --accent-strong: oklch(0.62 0.2 var(--accent-h));
+  --accent-soft: oklch(0.7 0.17 var(--accent-h) / 0.15);
+  --accent-fg: oklch(0.99 0 0);
+  --shadow: 0 10px 40px -12px oklch(0 0 0 / 0.6);
+  color-scheme: dark;
+}
+
+:root.light {
+  --bg: oklch(0.975 0.004 275);
+  --panel: oklch(1 0 0);
+  --panel-2: oklch(0.96 0.006 275);
+  --hover: oklch(0.93 0.008 275);
+  --line: oklch(0.88 0.008 275);
+  --fg: oklch(0.2 0.02 275);
+  --muted: oklch(0.45 0.02 275);
+  --subtle: oklch(0.6 0.016 275);
+  --accent: oklch(0.56 0.2 var(--accent-h));
+  --accent-strong: oklch(0.5 0.21 var(--accent-h));
+  --accent-soft: oklch(0.56 0.2 var(--accent-h) / 0.1);
+  --shadow: 0 10px 40px -16px oklch(0.3 0.03 275 / 0.35);
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-hover: var(--hover);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-fg: var(--accent-fg);
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --shadow-pop: var(--shadow);
+
+  --color-st-join: oklch(0.7 0.15 245);
+  --color-st-active: oklch(0.76 0.17 150);
+  --color-st-ask: oklch(0.78 0.16 70);
+  --color-st-busy: oklch(0.64 0.21 25);
+  --color-st-offline: oklch(0.55 0.01 275);
+  --color-st-web: oklch(0.7 0.11 175);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  overflow: hidden;
+}
+
+input,
+textarea,
+.selectable {
+  user-select: text;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--hover) transparent;
+}
+
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+img {
+  -webkit-user-drag: none;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--panel-2) 25%, var(--hover) 50%, var(--panel-2) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+[cmdk-group-heading] {
+  padding: 8px 12px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--subtle);
+}
+
