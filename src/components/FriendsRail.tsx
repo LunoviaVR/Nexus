@@ -1,6 +1,6 @@
 import { ChevronDown, LogIn, Search } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
-import { groupByInstance, matches } from "@/lib/friends";
+import { byRecent, groupByInstance, matches } from "@/lib/friends";
 import { ago, cn, duration, sortByName, STATUS_LABEL } from "@/lib/format";
 import { useWorldName } from "@/lib/queries";
 import { useNow } from "@/lib/useNow";
@@ -90,8 +90,7 @@ export function FriendsRail() {
     const visible = Object.values(byId).filter(
       (f) => matches(f, q) && (f.state === "online" || (f.state === "active" && layout.showWeb) || (f.state === "offline" && layout.showOffline)),
     );
-    const recent = (f: VrcUser) => f.$locationAt ?? (Date.parse(f.last_activity || f.last_login || "") || 0);
-    const cmp = layout.sort === "recent" ? (a: VrcUser, b: VrcUser) => recent(b) - recent(a) || sortByName(a, b) : sortByName;
+    const cmp = layout.sort === "recent" ? byRecent : sortByName;
     const sorted = (list: VrcUser[]) => [...list].sort(cmp);
 
     const favs = layout.favoritesFirst ? sorted(visible.filter((f) => favorites.has(f.id))) : [];

@@ -1,7 +1,7 @@
 import { CalendarDays, Copy, ExternalLink, Gauge, Shirt, Sparkles, Tag } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { cn } from "@/lib/format";
+import { cn, list } from "@/lib/format";
 import { fullSizeUrl } from "@/lib/image";
 import { errorText, ipc } from "@/lib/ipc";
 import { useAvatar } from "@/lib/queries";
@@ -92,10 +92,10 @@ function AvatarBody({ avatarId }: { avatarId: string }) {
     }
   };
 
-  const packagesFor = (platform: string) => (a.unityPackages ?? []).filter((p) => p.platform === platform && p.variant !== "impostor");
+  const packagesFor = (platform: string) => list(a.unityPackages).filter((p) => p.platform === platform && p.variant !== "impostor");
   const supported = PLATFORMS.filter((p) => packagesFor(p.key).length || a.performance?.[p.key]);
-  const contentTags = (a.tags ?? []).filter((t) => t in CONTENT_TAGS);
-  const authorTags = (a.tags ?? []).filter((t) => t.startsWith("author_tag_")).map((t) => t.slice("author_tag_".length));
+  const contentTags = list<string>(a.tags).filter((t) => t in CONTENT_TAGS);
+  const authorTags = list<string>(a.tags).filter((t) => t.startsWith("author_tag_")).map((t) => t.slice("author_tag_".length));
   const styles = [a.styles?.primary, a.styles?.secondary].filter(Boolean) as string[];
 
   return (

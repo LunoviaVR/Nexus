@@ -210,7 +210,10 @@ pub async fn refresh_friends(app: &AppHandle) -> Result<()> {
             apply_friend(app, &id, f, None, None);
         } else {
             let mut s = st.session.write();
-            f["$locationAt"] = json!(now_ms());
+            // "Here since" only means something for friends who are on; offline ones keep VRChat's last-seen time.
+            if state != "offline" {
+                f["$locationAt"] = json!(now_ms());
+            }
             s.friends.insert(id, f);
         }
     }

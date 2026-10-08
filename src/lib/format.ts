@@ -3,6 +3,17 @@ import { twMerge } from "tailwind-merge";
 import { formatDistanceToNowStrict } from "date-fns";
 import type { FriendState, Status, VrcUser } from "./types";
 
+/**
+ * VRChat's API isn't consistent about list fields: the same field can arrive as an array,
+ * an object, a string or null depending on the endpoint and the item. Treat anything
+ * that isn't an array as empty, so one odd item can't break a whole page.
+ */
+export function list<T>(v: T[] | null | undefined): T[];
+export function list<T = unknown>(v: unknown): T[];
+export function list<T>(v: unknown): T[] {
+  return Array.isArray(v) ? (v as T[]) : [];
+}
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }

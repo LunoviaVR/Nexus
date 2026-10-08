@@ -1,4 +1,5 @@
 import { Heart, Users } from "lucide-react";
+import { list } from "@/lib/format";
 import type { Avatar, World } from "@/lib/types";
 import { useUi } from "@/stores/ui";
 import { Img } from "./ui";
@@ -39,7 +40,7 @@ export function WorldCard({ w, friendsHere = 0 }: { w: World; friendsHere?: numb
 }
 
 export function AvatarCard({ a, onSelect, busy }: { a: Avatar; onSelect: () => void; busy?: boolean }) {
-  const quest = a.unityPackages?.some((p) => p.platform === "android");
+  const quest = list(a.unityPackages).some((p) => p.platform === "android");
   const openAvatar = useUi((s) => s.openAvatar);
   return (
     <div

@@ -2,7 +2,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { BadgeCheck, CalendarDays, Copy, Crown, ExternalLink, Globe, Link as LinkIcon, Lock, LogIn, Megaphone, Search, Send, Users } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ago, cn } from "@/lib/format";
+import { ago, cn, list } from "@/lib/format";
 import { errorText, ipc } from "@/lib/ipc";
 import { useUser } from "@/lib/queries";
 import type { VrcGroupDetail, VrcGroupMember } from "@/lib/types";
@@ -286,9 +286,9 @@ function About({ g }: { g: VrcGroupDetail }) {
           <p className="selectable whitespace-pre-wrap [overflow-wrap:anywhere] text-[13px] leading-relaxed text-muted">{g.rules}</p>
         </Panel>
       )}
-      {!!g.tags?.length && (
+      {list(g.tags).length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {g.tags.map((t) => (
+          {list<string>(g.tags).map((t) => (
             <span key={t} className="rounded-md bg-panel-2 px-2 py-0.5 text-xs text-muted">
               {t.replace(/^(admin_|system_)/, "")}
             </span>

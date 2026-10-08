@@ -233,7 +233,9 @@ export function installMock() {
           };
         }
         case "avatars_list":
-          return names.slice(0, 10).map((n, i) => ({ id: `avtr_${i}`, name: `${n} Fox`, authorName: "Okami", thumbnailImageUrl: img("av" + n, 300, 400), releaseStatus: i % 3 ? "private" : "public", created_at: new Date(now - i * 9e8).toISOString(), updated_at: new Date(now - ((i * 7) % 10) * 8e7).toISOString() }));
+          return names.slice(0, 10).map((n, i) => ({ id: `avtr_${i}`, name: `${n} Fox`, authorName: "Okami", thumbnailImageUrl: img("av" + n, 300, 400), releaseStatus: i % 3 ? "private" : "public", created_at: new Date(now - i * 9e8).toISOString(), updated_at: new Date(now - ((i * 7) % 10) * 8e7).toISOString(),
+            // VRChat sometimes sends list fields in other shapes; keep a few here so the UI stays tolerant.
+            unityPackages: i === 1 ? {} : i === 2 ? "standalonewindows" : [{ platform: "standalonewindows" }, ...(i % 2 ? [] : [{ platform: "android" }])] }));
         case "users_search": {
           const strangers = ["Starling", "Moss", "Tidewalker", "Lantern", "Quokka"].map((name, i) => ({
             id: `usr_s${i}`,

@@ -5,7 +5,7 @@ import { DiscoverPeopleDialog } from "@/components/DiscoverDialog";
 import { FriendCard } from "@/components/FriendCard";
 import { RefreshButton } from "@/components/RefreshButton";
 import { Button, Chip, Empty, Input, PageHeader, Segmented, Skeleton } from "@/components/ui";
-import { bucketOf, matches, type Bucket } from "@/lib/friends";
+import { bucketOf, byRecent, matches, type Bucket } from "@/lib/friends";
 import { sortByName } from "@/lib/format";
 import { ipc } from "@/lib/ipc";
 import type { VrcUser } from "@/lib/types";
@@ -25,7 +25,6 @@ const SECTIONS: { key: Bucket; label: string }[] = [
 const CARD_MIN = 300;
 const GAP = 10;
 
-const recentTs = (f: VrcUser) => f.$locationAt ?? (Date.parse(f.last_login ?? "") || 0);
 
 function useWidth(ref: RefObject<HTMLElement | null>) {
   const [w, setW] = useState(0);
@@ -60,18 +59,16 @@ export function Friends() {
 
   const sections = useMemo(() => {
     const all = Object.values(byId).filter((f) => matches(f, q));
-    const cmp =
-      sort === "name"
-        ? sortByName
-        : (a: VrcUser, b: VrcUser) => recentTs(b) - recentTs(a) || sortByName(a, b);
+    const cmp = sort === "name" ? sortByName : byRecent;
     const by: Record<Bucket, VrcUser[]> = { favorites: [], ingame: [], web: [], offline: [] };
     for (const f of all) {
-      if (favorites.has(f.id) && f.state !== "offline") by.favorites.push(f);
+      // With the Favorites section switched off, favorites go back to their usual section.
+      if (shown.favorites && favorites.has(f.id) && f.state !== "offline") by.favorites.push(f);
       else by[bucketOf(f)].push(f);
     }
     for (const k of Object.keys(by) as Bucket[]) by[k].sort(cmp);
     return by;
-  }, [byId, favorites, q, sort]);
+  }, [byId, favorites, q, sort, shown.favorites]);
 
   const items = useMemo<Item[]>(() => {
     const out: Item[] = [];
@@ -130,7 +127,17 @@ export function Friends() {
         </div>
       ) : (
         <div ref={box} className="relative" style={{ height: v.getTotalSize() }}>
-          {items.length === 0 && <Empty icon={<Users />} title="No friends match" hint="Try a different search or turn on more sections." />}
+          {items.length === 0 &&
+            (SECTIONS.some((s) => !shown[s.key] && sections[s.key].length) ? (
+              // Matches exist, just in sections that are switched off.
+              <Empty icon={<Users />} title="Your matches are in hidden sections">
+                <Button size="sm" onClick={() => setShown({ favorites: true, ingame: true, web: true, offline: true })}>
+                  Show all sections
+                </Button>
+              </Empty>
+            ) : (
+              <Empty icon={<Users />} title="No friends match" hint="Try a different search." />
+            ))}
           {v.getVirtualItems().map((vi) => {
             const it = items[vi.index];
             return (

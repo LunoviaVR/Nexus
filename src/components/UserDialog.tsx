@@ -37,6 +37,7 @@ import { useNow } from "@/lib/useNow";
 import type { CurrentUser, UserHistory, VrcBadge, VrcGroup, VrcProfile, VrcUser, World } from "@/lib/types";
 import { useAuth } from "@/stores/auth";
 import { useFriends } from "@/stores/friends";
+import { byRecent } from "@/lib/friends";
 import { useUi } from "@/stores/ui";
 import { AvatarCard, GRID, WorldCard } from "./Cards";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -1017,17 +1018,13 @@ function MutualsTab({ userId }: { userId: string }) {
     const st = byId[id]?.state;
     return st === "online" ? 0 : st === "active" ? 1 : 2;
   };
-  const recency = (id: string) => {
-    const f = byId[id];
-    return f?.$locationAt ?? (Date.parse(f?.last_activity || f?.last_login || "") || 0);
-  };
   const s = q.trim().toLowerCase();
   const friends = list
     .filter((m) => !s || m.displayName.toLowerCase().includes(s))
     .sort((a, b) => {
       const byName = a.displayName.localeCompare(b.displayName, undefined, { sensitivity: "base" });
       if (sort === "online") return presence(a.id) - presence(b.id) || byName;
-      if (sort === "recent") return recency(b.id) - recency(a.id) || byName;
+      if (sort === "recent") return byId[a.id] && byId[b.id] ? byRecent(byId[a.id], byId[b.id]) : byName;
       return byName;
     });
 

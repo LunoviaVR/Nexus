@@ -42,6 +42,21 @@ export function groupByInstance(friends: VrcUser[]): { groups: InstanceGroup[]; 
   return { groups, elsewhere };
 }
 
+/** When VRChat last saw them active (0 if unknown). */
+function lastSeen(f: VrcUser): number {
+  return Date.parse(f.last_activity || f.last_login || "") || 0;
+}
+
+/**
+ * Most recently active first. Offline friends sort by when they were last seen. Online ones sort by
+ * when Nexus saw them arrive or move, falling back to VRChat's last activity: everyone already
+ * online at startup shares the same arrival time, so that alone would tie.
+ */
+export function byRecent(a: VrcUser, b: VrcUser): number {
+  const primary = (f: VrcUser) => (f.state === "offline" ? lastSeen(f) : (f.$locationAt ?? lastSeen(f)));
+  return primary(b) - primary(a) || lastSeen(b) - lastSeen(a) || sortByName(a, b);
+}
+
 export function matches(f: VrcUser, q: string): boolean {
   if (!q) return true;
   const s = q.toLowerCase();
