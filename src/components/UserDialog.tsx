@@ -50,7 +50,8 @@ import { FeedRow } from "./FeedRow";
 import { actions, InstanceBadge, LocationLabel, RegionLabel, TrustLabel, UserAvatar } from "./people";
 import { Button, Dialog, Empty, Img, Input, SectionTitle, Segmented, Skeleton, Switch, Tip } from "./ui";
 
-type Tab = "info" | "groups" | "mutuals" | "worlds" | "favworlds" | "avatars" | "activity" | "json";
+const TABS = ["info", "groups", "mutuals", "worlds", "favworlds", "avatars", "activity", "json"] as const;
+type Tab = (typeof TABS)[number];
 
 export const LANGUAGES: Record<string, string> = {
   eng: "English", jpn: "Japanese", kor: "Korean", zho: "Chinese", spa: "Spanish", fra: "French", deu: "German",
@@ -276,7 +277,11 @@ function Profile({ userId }: { userId: string }) {
   const isMe = me?.id === userId;
   const profile = useQuery({ queryKey: ["profile", userId], queryFn: () => ipc.profile(userId), staleTime: 5 * 60_000 });
   const history = useQuery({ queryKey: ["history", userId], queryFn: () => ipc.userHistory(userId) });
-  const [tab, setTab] = useState<Tab>("info");
+  // Some links open a profile straight on a tab, e.g. a world's creator on their Worlds.
+  const [tab, setTab] = useState<Tab>(() => {
+    const wanted = useUi.getState().userTab;
+    return wanted && TABS.includes(wanted as Tab) ? (wanted as Tab) : "info";
+  });
   // The tab bar only gets a surface once it's actually stuck to the top.
   const [stuck, setStuck] = useState(false);
 

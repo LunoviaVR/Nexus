@@ -90,6 +90,7 @@ function InstanceRow({ row, focus }: { row: Row; focus: boolean }) {
 }
 
 function WorldBody({ worldId, focus }: { worldId: string; focus: string | null }) {
+  const openUser = useUi((s) => s.openUser);
   const { data: w, isLoading, error } = useWorld(worldId);
   const byId = useFriends((s) => s.byId);
   const [tab, setTab] = useState<"instances" | "about">("instances");
@@ -140,7 +141,20 @@ function WorldBody({ worldId, focus }: { worldId: string; focus: string | null }
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-panel via-panel/30 to-transparent" />
         <div className="pointer-events-none absolute bottom-3 left-6 right-6">
           <h2 className="selectable text-2xl font-bold text-white drop-shadow">{w.name}</h2>
-          <p className="text-[13px] text-white/80">by {w.authorName}</p>
+          <p className="text-[13px] text-white/80">
+            by{" "}
+            {w.authorId ? (
+              <button
+                onClick={() => openUser(w.authorId!, "worlds")}
+                title={`See ${w.authorName}'s worlds`}
+                className="pointer-events-auto font-medium text-white underline-offset-2 hover:underline cursor-pointer"
+              >
+                {w.authorName}
+              </button>
+            ) : (
+              w.authorName
+            )}
+          </p>
         </div>
       </div>
       <ImageViewer

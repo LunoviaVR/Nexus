@@ -48,6 +48,8 @@ interface UiState {
   friendsLayout: FriendsLayout;
   setFriendsLayout: (patch: Partial<FriendsLayout>) => void;
   userId: string | null;
+  /** Profile tab to open on (e.g. "worlds"); null for the default. */
+  userTab: string | null;
   worldId: string | null;
   worldLocation: string | null;
   groupId: string | null;
@@ -63,7 +65,7 @@ interface UiState {
   setTheme: (t: Theme) => void;
   setAccent: (h: number) => void;
   setPalette: (open: boolean) => void;
-  openUser: (id: string | null) => void;
+  openUser: (id: string | null, tab?: string) => void;
   openWorld: (id: string | null, location?: string | null) => void;
   openGroup: (id: string | null) => void;
   openAvatar: (id: string | null) => void;
@@ -83,6 +85,7 @@ export const useUi = create<UiState>()(
       friendsLayout: DEFAULT_FRIENDS_LAYOUT,
       setFriendsLayout: (patch) => set((s) => ({ friendsLayout: { ...s.friendsLayout, ...patch } })),
       userId: null,
+      userTab: null,
       worldId: null,
       worldLocation: null,
       groupId: null,
@@ -97,7 +100,7 @@ export const useUi = create<UiState>()(
       setTheme: (theme) => set({ theme }),
       setAccent: (accentHue) => set({ accentHue }),
       setPalette: (paletteOpen) => set({ paletteOpen }),
-      openUser: (userId) => set({ userId }),
+      openUser: (userId, tab) => set({ userId, userTab: tab ?? null }),
       openWorld: (worldId, worldLocation = null) => set({ worldId, worldLocation }),
       openGroup: (groupId) => set({ groupId }),
       openAvatar: (avatarId) => set({ avatarId }),
