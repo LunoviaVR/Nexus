@@ -13,6 +13,18 @@ use crate::state::AppState;
 
 static SLOTS: LazyLock<tokio::sync::Semaphore> = LazyLock::new(|| tokio::sync::Semaphore::new(6));
 
+/// Images that just failed, and when they may be tried again. Without this, every re-render of a
+/// card asks again, which is exactly what keeps an account rate limited.
+static FAILED: LazyLock<parking_lot::Mutex<std::collections::HashMap<String, std::time::Instant>>> = LazyLock::new(Default::default);
+
+fn retry_later(status: u16) -> std::time::Duration {
+    std::time::Duration::from_secs(match status {
+        429 => 60,
+        404 | 403 | 401 => 30 * 60,
+        _ => 5 * 60,
+    })
+}
+
 const ALLOWED_HOSTS: [&str; 4] = ["api.vrchat.cloud", "assets.vrchat.com", "files.vrchat.cloud", "vrchat.com"];
 
 fn sniff(bytes: &[u8]) -> &'static str {
@@ -54,7 +66,8 @@ pub fn handle(ctx: UriSchemeContext<'_, Wry>, req: Request<Vec<u8>>, responder: 
             Response::builder()
                 .status(status)
                 .header("Content-Type", ct)
-                .header("Cache-Control", "public, max-age=604800, immutable")
+                // Only successes may be cached; a failure (often a temporary 429) must be retried later.
+                .header("Cache-Control", if status.is_success() { "public, max-age=604800, immutable" } else { "no-store" })
                 .header("Access-Control-Allow-Origin", "*")
                 .body(body)
                 .unwrap()
@@ -69,6 +82,12 @@ pub fn handle(ctx: UriSchemeContext<'_, Wry>, req: Request<Vec<u8>>, responder: 
             return responder.respond(reply(StatusCode::OK, sniff(&bytes), bytes));
         }
 
+        if let Some(until) = FAILED.lock().get(&url).copied() {
+            if until > std::time::Instant::now() {
+                return responder.respond(reply(StatusCode::SERVICE_UNAVAILABLE, "text/plain", vec![]));
+            }
+        }
+
         let _slot = SLOTS.acquire().await;
         match app.state::<AppState>().api.fetch_bytes(&url).await {
             Ok((ct, bytes)) => {
@@ -80,6 +99,11 @@ pub fn handle(ctx: UriSchemeContext<'_, Wry>, req: Request<Vec<u8>>, responder: 
                 responder.respond(reply(StatusCode::OK, &ct, bytes));
             }
             Err(e) => {
+                if let Some(code) = e.status() {
+                    let mut failed = FAILED.lock();
+                    failed.retain(|_, until| *until > std::time::Instant::now());
+                    failed.insert(url.clone(), std::time::Instant::now() + retry_later(code));
+                }
                 let status = e.status().and_then(|s| StatusCode::from_u16(s).ok()).unwrap_or(StatusCode::BAD_GATEWAY);
                 responder.respond(reply(status, "text/plain", vec![]));
             }

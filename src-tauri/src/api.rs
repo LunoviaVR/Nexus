@@ -249,9 +249,16 @@ impl Api {
     }
 
     /// Download an image with the session cookie (VRChat's file endpoints require auth).
-    /// Not paced: these are file downloads, not API calls. The cookie is dropped on the
-    /// cross-host redirect to the CDN.
+    /// Image downloads. Pictures on VRChat's API host (`/api/1/file/…`, `/api/1/image/…`) count
+    /// against the same rate limit as everything else, so they're paced, wait out any cooldown,
+    /// give way to things you click, and start a cooldown themselves on a 429. Pictures already on
+    /// the CDN aren't limited and go straight through. The cookie is dropped on the cross-host
+    /// redirect to the CDN.
     pub async fn fetch_bytes(&self, url: &str) -> Result<(Option<String>, Vec<u8>)> {
+        let on_api = url.starts_with("https://api.vrchat.cloud/");
+        if on_api {
+            self.throttle(false).await;
+        }
         let mut req = self.http.get(url);
         let cookie = self.cookie_header();
         if !cookie.is_empty() {
@@ -259,6 +266,9 @@ impl Api {
         }
         let res = req.send().await?;
         let status = res.status();
+        if status == StatusCode::TOO_MANY_REQUESTS {
+            self.cool_down(retry_after(res.headers()).unwrap_or_else(|| backoff(1)));
+        }
         if !status.is_success() {
             return Err(Error::Api { status: status.as_u16(), message: format!("Image request failed ({status})") });
         }
