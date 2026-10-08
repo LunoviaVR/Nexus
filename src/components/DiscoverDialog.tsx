@@ -1,7 +1,6 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { BadgeCheck, Check, Compass, Search, UserPlus, Users } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { toast } from "sonner";
 import { platformLabel } from "@/lib/format";
 import { errorText, ipc } from "@/lib/ipc";
 import type { VrcGroupDetail, VrcUser } from "@/lib/types";
@@ -9,7 +8,7 @@ import { useAuth } from "@/stores/auth";
 import { useFriends } from "@/stores/friends";
 import { useUi } from "@/stores/ui";
 import { MembershipButton } from "./GroupMembership";
-import { TrustLabel, UserAvatar } from "./people";
+import { actions, TrustLabel, UserAvatar } from "./people";
 import { Button, Dialog, Empty, Img, Input, Skeleton } from "./ui";
 
 /**
@@ -165,14 +164,7 @@ function PersonRow({ u }: { u: VrcUser }) {
   const platform = platformLabel(u.last_platform);
   const add = async () => {
     setState("busy");
-    try {
-      await ipc.friendRequest(u.id);
-      setState("sent");
-      toast.success(`Friend request sent to ${u.displayName}`);
-    } catch (e) {
-      setState("idle");
-      toast.error(errorText(e));
-    }
+    setState((await actions.friendRequest(u)) ? "sent" : "idle");
   };
   return (
     <ResultRow

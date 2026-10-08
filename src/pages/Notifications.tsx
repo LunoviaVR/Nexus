@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Bell, Check, Hand, Mail, MailPlus, UserPlus, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
+import { actions, socialAction } from "@/components/people";
 import { Button, Card, Chip, Empty, Img, PageHeader, Skeleton } from "@/components/ui";
 import { ago } from "@/lib/format";
 import { errorText, ipc } from "@/lib/ipc";
@@ -56,8 +57,11 @@ export function Notifications() {
   const act = async (n: VrcNotification, accept: boolean) => {
     try {
       if (accept && n.type === "boop") {
-        await ipc.boop(n.senderUserId);
-        toast.success(`Booped ${n.senderUsername} back`);
+        await socialAction(`boop:${n.senderUserId}`, `Booping ${n.senderUsername} back…`, `Booped ${n.senderUsername} back`, () => ipc.boop(n.senderUserId));
+        return;
+      }
+      if (accept && n.type === "requestInvite") {
+        if (await actions.invite({ id: n.senderUserId, displayName: n.senderUsername })) dropNotification(n.id);
         return;
       }
       if (!accept && n.v2) await ipc.deleteNotificationV2(n.id);
@@ -65,8 +69,7 @@ export function Notifications() {
       else if (accept && n.type === "invite") {
         const loc = detail(n, "worldId");
         if (loc) await ipc.launch(loc);
-      } else if (accept && n.type === "requestInvite") await ipc.invite(n.senderUserId);
-      else await ipc.hideNotification(n.id);
+      } else await ipc.hideNotification(n.id);
       dropNotification(n.id);
       if (accept) toast.success("Done");
     } catch (e) {

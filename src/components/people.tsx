@@ -130,6 +130,28 @@ export function PlayerCount({ n, cap }: { n?: number; cap?: number }) {
   );
 }
 
+const inFlight = new Set<string>();
+
+/**
+ * Run a social action once at a time per target, with a "sending" toast that turns into the result.
+ * If VRChat is rate limiting, the request waits it out first, so the toast keeps you informed.
+ */
+export async function socialAction(key: string, pending: string, done: string, run: () => Promise<unknown>): Promise<boolean> {
+  if (inFlight.has(key)) return false;
+  inFlight.add(key);
+  const id = toast.loading(pending);
+  try {
+    await run();
+    toast.success(done, { id });
+    return true;
+  } catch (e) {
+    toast.error(errorText(e), { id });
+    return false;
+  } finally {
+    inFlight.delete(key);
+  }
+}
+
 /** Shared social actions with consistent toasts. */
 export const actions = {
   async join(location: string) {
@@ -140,29 +162,21 @@ export const actions = {
       toast.error(errorText(e));
     }
   },
-  async selfInvite(location: string) {
-    try {
-      await ipc.inviteSelf(location);
-      toast.success("Invite sent to yourself");
-    } catch (e) {
-      toast.error(errorText(e));
-    }
+  selfInvite(location: string) {
+    return socialAction(`self:${location}`, "Sending you an invite…", "Invite sent to yourself", () => ipc.inviteSelf(location));
   },
-  async invite(user: VrcUser) {
-    try {
-      await ipc.invite(user.id);
-      toast.success(`Invited ${user.displayName}`);
-    } catch (e) {
-      toast.error(errorText(e));
-    }
+  invite(user: Pick<VrcUser, "id" | "displayName">) {
+    return socialAction(`invite:${user.id}`, `Inviting ${user.displayName}…`, `Invited ${user.displayName}`, () => ipc.invite(user.id));
   },
-  async requestInvite(user: VrcUser) {
-    try {
-      await ipc.requestInvite(user.id);
-      toast.success(`Asked ${user.displayName} for an invite`);
-    } catch (e) {
-      toast.error(errorText(e));
-    }
+  requestInvite(user: Pick<VrcUser, "id" | "displayName">) {
+    return socialAction(`reqinv:${user.id}`, `Asking ${user.displayName} for an invite…`, `Asked ${user.displayName} for an invite`, () =>
+      ipc.requestInvite(user.id),
+    );
+  },
+  friendRequest(user: Pick<VrcUser, "id" | "displayName">) {
+    return socialAction(`friend:${user.id}`, `Sending a friend request to ${user.displayName}…`, `Friend request sent to ${user.displayName}`, () =>
+      ipc.friendRequest(user.id),
+    );
   },
   canJoin(location?: string | null) {
     return isJoinable(parseLocation(location));

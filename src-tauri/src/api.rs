@@ -1,6 +1,7 @@
 //! Thin VRChat REST client: cookie handling, request pacing and 429 backoff.
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 use base64::Engine;
@@ -15,11 +16,18 @@ pub const API_BASE: &str = "https://api.vrchat.cloud/api/1";
 /// VRChat asks API clients to identify themselves with a name, version and contact.
 pub const USER_AGENT: &str = concat!("Nexus/", env!("CARGO_PKG_VERSION"), " (+https://github.com/LunoviaVR/Nexus)");
 const MIN_INTERVAL: Duration = Duration::from_millis(350);
+/// Longest we'll wait inside one request for a rate limit to lift; past that we report it instead.
+const ACTION_MAX_WAIT: Duration = Duration::from_secs(20);
+const BACKGROUND_MAX_WAIT: Duration = Duration::from_secs(120);
 
 pub struct Api {
     http: reqwest::Client,
     cookies: Mutex<HashMap<String, String>>,
     gate: tokio::sync::Mutex<Instant>,
+    /// After a 429, nothing is sent until this passes, so background traffic can't extend the limit.
+    cooldown_until: Mutex<Option<Instant>>,
+    /// Things you clicked (invites, boops, requests) waiting to be sent; background reads give way to them.
+    actions_waiting: AtomicUsize,
 }
 
 impl Api {
@@ -33,6 +41,8 @@ impl Api {
             http,
             cookies: Mutex::new(HashMap::new()),
             gate: tokio::sync::Mutex::new(Instant::now() - MIN_INTERVAL),
+            cooldown_until: Mutex::new(None),
+            actions_waiting: AtomicUsize::new(0),
         }
     }
 
@@ -81,13 +91,35 @@ impl Api {
         }
     }
 
-    async fn throttle(&self) {
+    async fn throttle(&self, action: bool) {
+        // Background reads step aside while something you clicked is waiting to go out.
+        if !action {
+            while self.actions_waiting.load(Ordering::Acquire) > 0 {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+        }
         let mut last = self.gate.lock().await;
+        let cooldown = *self.cooldown_until.lock();
+        if let Some(until) = cooldown {
+            let now = Instant::now();
+            if until > now {
+                tokio::time::sleep(until - now).await;
+            }
+        }
         let elapsed = last.elapsed();
         if elapsed < MIN_INTERVAL {
             tokio::time::sleep(MIN_INTERVAL - elapsed).await;
         }
         *last = Instant::now();
+    }
+
+    /// Pause all requests for `wait`, keeping any longer pause already in place.
+    fn cool_down(&self, wait: Duration) {
+        let until = Instant::now() + wait;
+        let mut c = self.cooldown_until.lock();
+        if c.is_none_or(|t| t < until) {
+            *c = Some(until);
+        }
     }
 
     pub async fn send(
@@ -99,10 +131,33 @@ impl Api {
         basic: Option<&str>,
     ) -> Result<Value> {
         let url = format!("{API_BASE}/{}", path.trim_start_matches('/'));
+        // Anything that changes something (invite, boop, request…) is something you clicked.
+        let action = method != Method::GET;
+        if action {
+            self.actions_waiting.fetch_add(1, Ordering::AcqRel);
+        }
+        let result = self.send_inner(&method, &url, query, body, basic, action).await;
+        if action {
+            self.actions_waiting.fetch_sub(1, Ordering::AcqRel);
+        }
+        result
+    }
+
+    async fn send_inner(
+        &self,
+        method: &Method,
+        url: &str,
+        query: &[(&str, String)],
+        body: Option<&Value>,
+        basic: Option<&str>,
+        action: bool,
+    ) -> Result<Value> {
+        let max_wait = if action { ACTION_MAX_WAIT } else { BACKGROUND_MAX_WAIT };
+        let mut waited = Duration::ZERO;
         let mut attempt = 0u32;
         loop {
-            self.throttle().await;
-            let mut req = self.http.request(method.clone(), &url).query(query);
+            self.throttle(action).await;
+            let mut req = self.http.request(method.clone(), url).query(query);
             let cookie = self.cookie_header();
             if !cookie.is_empty() {
                 req = req.header(header::COOKIE, cookie);
@@ -116,10 +171,15 @@ impl Api {
             let res = req.send().await?;
             self.store_cookies(res.headers());
             let status = res.status();
-            if status == StatusCode::TOO_MANY_REQUESTS && attempt < 3 {
+            if status == StatusCode::TOO_MANY_REQUESTS {
                 attempt += 1;
-                tokio::time::sleep(Duration::from_secs(2u64.pow(attempt))).await;
-                continue;
+                let wait = retry_after(res.headers()).unwrap_or_else(|| backoff(attempt));
+                self.cool_down(wait);
+                if attempt <= 3 && waited + wait <= max_wait {
+                    waited += wait;
+                    continue; // throttle() sleeps out the cooldown before the retry
+                }
+                return Err(Error::Api { status: 429, message: rate_limited_message(wait) });
             }
             let text = res.text().await?;
             let json = if text.is_empty() {
@@ -163,7 +223,7 @@ impl Api {
         bytes: Vec<u8>,
         fields: &[(&str, String)],
     ) -> Result<Value> {
-        self.throttle().await;
+        self.throttle(true).await;
         let part = reqwest::multipart::Part::bytes(bytes)
             .file_name("image.png")
             .mime_str("image/png")
@@ -233,5 +293,42 @@ impl Api {
             offset += 100;
         }
         Ok(out)
+    }
+}
+
+/// VRChat's `Retry-After`, in seconds, kept within sane bounds.
+fn retry_after(headers: &header::HeaderMap) -> Option<Duration> {
+    let secs: u64 = headers.get(header::RETRY_AFTER)?.to_str().ok()?.trim().parse().ok()?;
+    Some(Duration::from_secs(secs.clamp(1, 300)))
+}
+
+/// Without a `Retry-After`: 5s, 10s, 20s…
+fn backoff(attempt: u32) -> Duration {
+    Duration::from_secs(5 * 2u64.pow(attempt.saturating_sub(1).min(5)))
+}
+
+fn rate_limited_message(wait: Duration) -> String {
+    let secs = wait.as_secs().max(1);
+    let when = if secs < 60 { format!("{secs} seconds") } else { format!("{} minutes", secs.div_ceil(60)) };
+    format!("VRChat is limiting how fast you can do this right now. Try again in about {when}.")
+}
+
+#[cfg(test)]
+mod rate_limit_tests {
+    use super::*;
+
+    #[test]
+    fn honours_retry_after_and_backs_off_without_it() {
+        let mut h = header::HeaderMap::new();
+        h.insert(header::RETRY_AFTER, "12".parse().unwrap());
+        assert_eq!(retry_after(&h), Some(Duration::from_secs(12)));
+        assert_eq!(retry_after(&header::HeaderMap::new()), None);
+        assert_eq!((backoff(1), backoff(2), backoff(3)), (Duration::from_secs(5), Duration::from_secs(10), Duration::from_secs(20)));
+    }
+
+    #[test]
+    fn explains_the_limit_in_words() {
+        assert!(rate_limited_message(Duration::from_secs(30)).contains("about 30 seconds"));
+        assert!(rate_limited_message(Duration::from_secs(90)).contains("about 2 minutes"));
     }
 }

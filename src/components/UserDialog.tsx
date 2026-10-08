@@ -519,7 +519,7 @@ function Hero({ u, p, isMe, me }: { u: VrcUser; p?: VrcProfile; isMe: boolean; m
           <Button
             variant="primary"
             icon={<UserPlus className="size-4" />}
-            onClick={() => ipc.friendRequest(u.id).then(() => toast.success("Friend request sent"), (e) => toast.error(errorText(e)))}
+            onClick={() => actions.friendRequest(u)}
           >
             Add friend
           </Button>

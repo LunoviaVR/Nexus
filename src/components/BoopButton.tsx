@@ -2,11 +2,11 @@ import * as Popover from "@radix-ui/react-popover";
 import { useQuery } from "@tanstack/react-query";
 import { Hand, Search } from "lucide-react";
 import { useMemo, useState } from "react";
-import { toast } from "sonner";
 import { cn } from "@/lib/format";
 import { fileUrls } from "@/lib/image";
-import { errorText, ipc } from "@/lib/ipc";
+import { ipc } from "@/lib/ipc";
 import type { VrcUser } from "@/lib/types";
+import { socialAction } from "./people";
 import { Button, Img } from "./ui";
 
 /**
@@ -101,16 +101,15 @@ export function BoopButton({ user, size = "sm" }: { user: VrcUser; size?: "sm" |
 
   const send = async (key: string, emojiId?: string, label?: string) => {
     setBusy(key);
-    try {
-      await ipc.boop(user.id, emojiId);
-      toast.success(label ? `Booped ${user.displayName} with ${label}` : `Booped ${user.displayName}`);
-      setOpen(false);
-    } catch (e) {
-      // VRChat won't take another boop until they've seen the last one.
-      toast.error(errorText(e));
-    } finally {
-      setBusy(null);
-    }
+    // VRChat won't take another boop until they've seen the last one, and rate limits rapid boops.
+    const ok = await socialAction(
+      `boop:${user.id}`,
+      `Booping ${user.displayName}…`,
+      label ? `Booped ${user.displayName} with ${label}` : `Booped ${user.displayName}`,
+      () => ipc.boop(user.id, emojiId),
+    );
+    setBusy(null);
+    if (ok) setOpen(false);
   };
 
   return (
