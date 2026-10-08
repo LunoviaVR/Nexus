@@ -1,6 +1,6 @@
 [package]
 name = "nexus"
-version = "1.0.3"
+version = "1.0.4"
 description = "A modern VRChat companion app"
 edition = "2021"
 rust-version = "1.82"
