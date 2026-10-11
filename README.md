@@ -112,12 +112,14 @@ Nexus paces every request it makes so it doesn't get your account rate limited. 
 
 | | |
 |---|---|
-| <img src="docs/screenshots/friends.png" alt="Friends page with live status, locations and the Discover button" /> | <img src="docs/screenshots/profile.png" alt="A profile with banner fade, time-together stats and where they are right now" /> |
-| **Friends:** live status and location, grouped and searchable | **Profiles:** banner fade, time together, where they are right now |
+| <img src="docs/screenshots/friends.png" alt="Friends page with favorites, friends in game and on the web, and their locations" /> | <img src="docs/screenshots/profile.png" alt="A profile with its banner, a Voice muted badge and the More menu open with mute, hide avatar, block and unfriend" /> |
+| **Friends:** live status and location, grouped and searchable | **Profiles:** time together, where they are right now, and mute, hide, block or unfriend |
+| <img src="docs/screenshots/groups.png" alt="A group you own with Owner tools, join requests and the member list" /> | <img src="docs/screenshots/players.png" alt="Players in the current instance with pictures and trust ranks, friends first" /> |
+| **Groups:** owner tools, join requests, roles and members | **Players:** everyone in your instance, live, with pictures |
 | <img src="docs/screenshots/game-log.png" alt="Game Log session with its player list and timeline" /> | <img src="docs/screenshots/insights.png" alt="Insights with hours per day and a when-you-play heatmap" /> |
 | **Game Log:** who was there, for how long, and what happened | **Insights:** hours played, when you play, top worlds and friends |
-| <img src="docs/screenshots/notifications.png" alt="Notifications filtered by type with Join, Boop back and Accept" /> | <img src="docs/screenshots/settings.png" alt="Settings with updates from GitHub, encryption status and VRCX import" /> |
-| **Notifications:** invites, friend requests and boops, filterable | **Settings:** signed updates, encryption, VRCX import |
+| <img src="docs/screenshots/notifications.png" alt="Notifications filtered by type with Join, Boop back and Accept" /> | <img src="docs/screenshots/settings.png" alt="Settings for the VRChat install and links, Discord status and saving prints and stickers" /> |
+| **Notifications:** invites, friend requests and boops, filterable | **Settings:** VRChat install, Discord status, saved prints and stickers |
 
 <sub>Screenshots use Nexus's built-in demo data; the names and pictures are made up.</sub>
 
