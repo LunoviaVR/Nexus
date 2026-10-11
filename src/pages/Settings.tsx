@@ -9,7 +9,7 @@ import { cn } from "@/lib/format";
 import { errorText, ipc } from "@/lib/ipc";
 import { applyLogin, clearSession } from "@/lib/session";
 import { checkForUpdate, installUpdate, RELEASES_URL } from "@/lib/updates";
-import type { AppSettings, Scope } from "@/lib/types";
+import type { AppSettings, DiscordStatus, Scope } from "@/lib/types";
 import { useAuth } from "@/stores/auth";
 import { useFriends } from "@/stores/friends";
 import { useUi, type Theme } from "@/stores/ui";
@@ -35,6 +35,30 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       <Card>{children}</Card>
     </section>
   );
+}
+
+/** How Discord Rich Presence is doing, under its switch. */
+function DiscordState({ status }: { status?: DiscordStatus }) {
+  const line = (cls: string, icon: ReactNode, text: string) => (
+    <span className={cn("mt-1.5 flex items-center gap-1.5", cls)}>
+      {icon}
+      <span className="min-w-0 truncate">{text}</span>
+    </span>
+  );
+  switch (status?.state) {
+    case "showing":
+      return line("text-st-active", <CircleCheck className="size-3.5 shrink-0" />, `Showing “${status.details}”`);
+    case "idle":
+      return line("text-subtle", <CircleCheck className="size-3.5 shrink-0" />, "On. It shows up once you're in a world.");
+    case "noDiscord":
+      return line("text-st-ask", <CircleAlert className="size-3.5 shrink-0" />, "Discord isn't running. Open the Discord desktop app.");
+    case "unconfigured":
+      return line("text-st-ask", <CircleAlert className="size-3.5 shrink-0" />, "This build of Nexus has no Discord application set up.");
+    case "error":
+      return line("text-st-busy", <CircleAlert className="size-3.5 shrink-0" />, `Discord refused it: ${status.message}`);
+    default:
+      return null;
+  }
 }
 
 function FolderRow({
@@ -110,6 +134,12 @@ export function SettingsPage() {
   const photoDir = useQuery({ queryKey: ["photo-dir"], queryFn: ipc.photoDir, retry: false });
   const ugcDir = useQuery({ queryKey: ["ugc-dir"], queryFn: ipc.ugcDir });
   const vrchat = useQuery({ queryKey: ["vrchat-install"], queryFn: ipc.vrchatInstall });
+  const discord = useQuery({
+    queryKey: ["discord-status"],
+    queryFn: ipc.discordStatus,
+    enabled: !!settings.data?.discordPresence,
+    refetchInterval: 2000,
+  });
   const update = useQuery({ queryKey: ["update"], queryFn: () => checkForUpdate({ quiet: true }), retry: false, staleTime: 10 * 60_000 });
   const [exporting, setExporting] = useState(false);
   const [confirmExport, setConfirmExport] = useState(false);
@@ -384,6 +414,32 @@ export function SettingsPage() {
               </div>
             )}
           </Row>
+        </Section>
+      )}
+
+      {s && (
+        <Section title="Discord">
+          <Row
+            title="Show what you're playing"
+            hint={
+              <>
+                Your Discord profile shows the world you're in, the instance type and how long you've been there. Needs the Discord desktop app.
+                {s.discordPresence && <DiscordState status={discord.data} />}
+              </>
+            }
+          >
+            <Switch checked={s.discordPresence} onChange={(v) => save({ discordPresence: v })} label="Show what you're playing on Discord" />
+          </Row>
+          {s.discordPresence && (
+            <>
+              <Row title="Hide private instances" hint="In Invite, Invite+ and group-only instances, Discord only says you're in a private instance.">
+                <Switch checked={s.discordHidePrivate} onChange={(v) => save({ discordHidePrivate: v })} label="Hide private instances" />
+              </Row>
+              <Row title="Join button" hint="Lets people open your instance in VRChat from your Discord profile. Never shown for private instances, and you won't see it on your own profile.">
+                <Switch checked={s.discordJoinButton} onChange={(v) => save({ discordJoinButton: v })} label="Join button" />
+              </Row>
+            </>
+          )}
         </Section>
       )}
 

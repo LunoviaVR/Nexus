@@ -1257,6 +1257,11 @@ pub fn settings_set(app: AppHandle, settings: AppSettings) -> Result<()> {
 }
 
 #[tauri::command]
+pub fn discord_status() -> crate::discord::Status {
+    crate::discord::status()
+}
+
+#[tauri::command]
 pub fn default_log_dir() -> Option<String> {
     crate::gamelog::default_log_dir().map(|p| p.to_string_lossy().to_string())
 }

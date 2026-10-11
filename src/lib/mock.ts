@@ -389,7 +389,9 @@ export function installMock() {
           };
         }
         case "settings_get":
-          return { notifyOnline: "favorites", notifyOffline: "off", notifyInstanceJoin: "favorites", notifyInvites: true, notifyInviteRequests: true, notifyFriendRequests: true, notifyNewFriends: true, notifyUnfriends: true, notifyBoops: true, minimizeToTray: true, logDir: null, savePrints: true, saveStickers: true, ugcDir: null };
+          return { notifyOnline: "favorites", notifyOffline: "off", notifyInstanceJoin: "favorites", notifyInvites: true, notifyInviteRequests: true, notifyFriendRequests: true, notifyNewFriends: true, notifyUnfriends: true, notifyBoops: true, minimizeToTray: true, logDir: null, savePrints: true, saveStickers: true, ugcDir: null, discordPresence: true, discordHidePrivate: true, discordJoinButton: false };
+        case "discord_status":
+          return { state: "showing", details: worlds[0].name };
         case "vrchat_install_get":
           return { current: null, default: "E:\\SteamLibrary\\steamapps\\common\\VRChat", linksOk: false };
         case "boop_user":

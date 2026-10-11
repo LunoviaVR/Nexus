@@ -32,6 +32,12 @@ pub struct AppSettings {
     pub save_stickers: bool,
     /// Where saved prints/stickers go; defaults to Pictures/Nexus.
     pub ugc_dir: Option<String>,
+    /// Show the world you're in on your Discord profile (Rich Presence).
+    pub discord_presence: bool,
+    /// In instances you need an invite for, only say you're in a private instance.
+    pub discord_hide_private: bool,
+    /// A "Join" button on your Discord activity that opens your instance in VRChat.
+    pub discord_join_button: bool,
 }
 
 impl Default for AppSettings {
@@ -52,6 +58,9 @@ impl Default for AppSettings {
             save_prints: true,
             save_stickers: true,
             ugc_dir: None,
+            discord_presence: false,
+            discord_hide_private: true,
+            discord_join_button: false,
         }
     }
 }

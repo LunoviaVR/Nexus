@@ -421,7 +421,15 @@ export interface AppSettings {
   savePrints: boolean;
   saveStickers: boolean;
   ugcDir?: string | null;
+  discordPresence: boolean;
+  discordHidePrivate: boolean;
+  discordJoinButton: boolean;
 }
+
+export type DiscordStatus =
+  | { state: "off" | "unconfigured" | "idle" | "noDiscord" }
+  | { state: "showing"; details: string }
+  | { state: "error"; message: string };
 
 export interface FolderInfo {
   current?: string | null;

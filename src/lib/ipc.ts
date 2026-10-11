@@ -8,6 +8,7 @@ import type {
   FolderInfo,
   VrchatInstall,
   AppSettings,
+  DiscordStatus,
   Avatar,
   CurrentUser,
   FeedEntry,
@@ -155,6 +156,7 @@ export const ipc = {
 
   settings: () => invoke<AppSettings>("settings_get"),
   saveSettings: (settings: AppSettings) => invoke<void>("settings_set", { settings }),
+  discordStatus: () => invoke<DiscordStatus>("discord_status"),
   defaultLogDir: () => invoke<string | null>("default_log_dir"),
   vrchatInstall: () => invoke<VrchatInstall>("vrchat_install_get"),
   setVrchatDir: (dir: string | null) => invoke<void>("vrchat_dir_set", { dir }),

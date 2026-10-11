@@ -30,6 +30,7 @@ Live friends, a searchable history of everything they did, a game log of every w
 | **📜 Feed** | Every online/offline, location, status, avatar, bio and friend/unfriend change, searchable and filterable. |
 | **🎮 Game Log & Players** | Read from VRChat's own logs: every world you visited, a tidy list of who was there and for how long, a timeline of joins, leaves and videos, plus a live list of everyone in your current instance. |
 | **🔔 Notifications** | Invites, invite requests, friend requests and boops, filterable by type, with Accept, Join, Boop back and more. Windows notifications with a switch for each kind, plus per-friend online alerts. |
+| **🎧 Discord status** | Your Discord profile shows the world you're in, the instance type, how full it is and how long you've been there. Private instances stay hidden, and an optional Join button lets people follow you. Off until you turn it on. |
 | **🌍 Worlds, groups & avatars** | Browse and search worlds and see their instances. Manage and **discover** groups, browse group instances with rich filters, and switch or discover avatars. |
 | **📊 Insights** | Hours played per day, a when-you-play heatmap, top worlds and top friends, from 7 days to all time. |
 | **🖼️ Inventory** | Your prints, emojis, icons and banners, with uploads (VRC+). |
@@ -78,7 +79,7 @@ Only history from **before** Nexus started recording is imported, so nothing is 
 
 ## 🔒 Privacy & your data
 
-Nexus has no servers. It talks only to **VRChat**, to **GitHub** (to check for updates) and to **[avtrDB](https://avtrdb.com)** when you use Avatar discover. There is no analytics or telemetry.
+Nexus has no servers. It talks only to **VRChat**, to **GitHub** (to check for updates) and to **[avtrDB](https://avtrdb.com)** when you use Avatar discover. There is no analytics or telemetry. If you turn on **Discord status**, Nexus also passes the world you're in to the Discord app on your PC, which shows it on your profile.
 
 | What | Where | Protected by |
 |---|---|---|
@@ -182,6 +183,7 @@ React UI ──invoke──► Rust core (Tauri 2)
                        ├─ vault.rs      encryption keys (Credential Manager) and image-cache crypto
                        ├─ images.rs     nximg:// protocol with an encrypted on-disk image cache
                        ├─ vrcx.rs       one-click import from VRCX
+                       ├─ discord.rs    Discord Rich Presence over Discord's local IPC pipe
                        └─ session.rs    VRChat session cookies in Windows Credential Manager
 ```
 

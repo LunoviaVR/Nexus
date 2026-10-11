@@ -2,6 +2,7 @@ mod api;
 mod avtrdb;
 mod commands;
 mod db;
+mod discord;
 mod error;
 mod gamelog;
 mod images;
@@ -53,6 +54,7 @@ pub fn run() {
             tray::create(app.handle())?;
             gamelog::spawn(app.handle().clone());
             ugc::spawn(app.handle().clone());
+            discord::spawn(app.handle().clone());
             if !std::env::args().any(|a| a == "--minimized") {
                 tray::show_main(app.handle());
             }
@@ -151,6 +153,7 @@ pub fn run() {
             commands::memo_set,
             commands::settings_get,
             commands::settings_set,
+            commands::discord_status,
             commands::default_log_dir,
             commands::vrchat_install_get,
             commands::vrchat_dir_set,
