@@ -921,11 +921,12 @@ export function SortableGroups({ groups: all, actions }: { groups: VrcGroup[]; a
   const [sort, setSort] = useState<GroupSort>("alpha");
   const [q, setQ] = useState("");
   const ids = all.map((g) => g.groupId ?? g.id ?? "").filter(Boolean);
-  // The group list has no online counts; fetch details only once someone asks for that sort.
+  // The group list has no online counts; fetch details only once someone asks for that sort,
+  // in the background lane so a long list can't hold up anything else you open meanwhile.
   const details = useQueries({
     queries: ids.map((id) => ({
       queryKey: ["group", id],
-      queryFn: () => ipc.group(id),
+      queryFn: () => ipc.group(id, true),
       staleTime: 10 * 60_000,
       enabled: sort === "online",
     })),

@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { BadgeCheck, CalendarDays, Copy, Crown, ExternalLink, Globe, Link as LinkIcon, Lock, LogIn, Megaphone, Search, Send, Users } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ago, cn, list } from "@/lib/format";
 import { errorText, ipc } from "@/lib/ipc";
@@ -404,12 +404,18 @@ function Members({ g }: { g: VrcGroupDetail }) {
     enabled: access !== "no",
     retry: false,
   });
-  // Server-side search covers members that aren't loaded yet.
+  // Server-side search covers members that aren't loaded yet. It waits for a pause in typing,
+  // so a name doesn't cost a request per letter; the loaded list still filters instantly.
   const term = q.trim();
+  const [searchTerm, setSearchTerm] = useState(term);
+  useEffect(() => {
+    const t = setTimeout(() => setSearchTerm(term), 400);
+    return () => clearTimeout(t);
+  }, [term]);
   const search = useQuery({
-    queryKey: ["group-members-search", g.id, term],
-    queryFn: () => ipc.searchGroupMembers(g.id, term),
-    enabled: access !== "no" && term.length >= 3,
+    queryKey: ["group-members-search", g.id, searchTerm],
+    queryFn: () => ipc.searchGroupMembers(g.id, searchTerm),
+    enabled: access !== "no" && searchTerm.length >= 3,
     staleTime: 60_000,
     retry: false,
   });
@@ -429,7 +435,7 @@ function Members({ g }: { g: VrcGroupDetail }) {
   }
 
   const loaded = list.data?.pages.flat() ?? [];
-  const source = term.length >= 3 && search.data ? search.data : loaded.filter((m) => !term || m.user.displayName.toLowerCase().includes(term.toLowerCase()));
+  const source = term.length >= 3 && searchTerm === term && search.data ? search.data : loaded.filter((m) => !term || m.user.displayName.toLowerCase().includes(term.toLowerCase()));
 
   const rank = (roleIds?: string[]) =>
     Math.min(...(roleIds ?? []).map((id) => roles.get(id)?.order ?? 999), 999);
@@ -478,7 +484,7 @@ function Members({ g }: { g: VrcGroupDetail }) {
         {search.isFetching && <span className="text-xs text-subtle">Searching…</span>}
       </div>
       <p className="mb-3 text-[13px] text-muted">
-        {term.length >= 3 && search.data
+        {term.length >= 3 && searchTerm === term && search.data
           ? `${members.length} matches across the whole group`
           : `Showing ${loaded.length.toLocaleString()} of ${total.toLocaleString()} members`}
         {friendCount > 0 && <span className="text-accent"> · {friendCount} friends</span>}

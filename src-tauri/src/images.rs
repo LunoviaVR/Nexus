@@ -13,6 +13,10 @@ use crate::state::AppState;
 
 static SLOTS: LazyLock<tokio::sync::Semaphore> = LazyLock::new(|| tokio::sync::Semaphore::new(6));
 
+/// Pictures being downloaded right now, so one shown in two places at once is fetched once.
+static IN_FLIGHT: LazyLock<parking_lot::Mutex<std::collections::HashMap<String, std::sync::Arc<tokio::sync::Mutex<()>>>>> =
+    LazyLock::new(Default::default);
+
 /// Images that just failed, and when they may be tried again. Without this, every re-render of a
 /// card asks again, which is exactly what keeps an account rate limited.
 static FAILED: LazyLock<parking_lot::Mutex<std::collections::HashMap<String, std::time::Instant>>> = LazyLock::new(Default::default);
@@ -78,14 +82,22 @@ pub fn handle(ctx: UriSchemeContext<'_, Wry>, req: Request<Vec<u8>>, responder: 
 
         let dir = app.path().app_cache_dir().ok().map(|d| d.join(CACHE_DIR));
         let file = dir.as_ref().zip(crate::vault::image_name(&url)).map(|(d, name)| d.join(name));
-        if let Some(bytes) = file.as_ref().and_then(|f| std::fs::read(f).ok()).and_then(|b| crate::vault::open(&b)) {
+        let from_disk = || file.as_ref().and_then(|f| std::fs::read(f).ok()).and_then(|b| crate::vault::open(&b));
+        let unavailable = || reply(StatusCode::SERVICE_UNAVAILABLE, "text/plain", vec![]);
+        if let Some(bytes) = from_disk() {
             return responder.respond(reply(StatusCode::OK, sniff(&bytes), bytes));
         }
+        if failed_recently(&url) {
+            return responder.respond(unavailable());
+        }
 
-        if let Some(until) = FAILED.lock().get(&url).copied() {
-            if until > std::time::Instant::now() {
-                return responder.respond(reply(StatusCode::SERVICE_UNAVAILABLE, "text/plain", vec![]));
-            }
+        let _same = SameUrl::wait(&url).await;
+        // Someone asked for the same picture first: it's on disk now, or it just failed.
+        if let Some(bytes) = from_disk() {
+            return responder.respond(reply(StatusCode::OK, sniff(&bytes), bytes));
+        }
+        if failed_recently(&url) {
+            return responder.respond(unavailable());
         }
 
         let _slot = SLOTS.acquire().await;
@@ -109,6 +121,35 @@ pub fn handle(ctx: UriSchemeContext<'_, Wry>, req: Request<Vec<u8>>, responder: 
             }
         }
     });
+}
+
+fn failed_recently(url: &str) -> bool {
+    FAILED.lock().get(url).is_some_and(|until| *until > std::time::Instant::now())
+}
+
+/// Holds the turn for one URL; the next request for it goes once this is dropped.
+struct SameUrl {
+    url: String,
+    slot: std::sync::Arc<tokio::sync::Mutex<()>>,
+    _turn: tokio::sync::OwnedMutexGuard<()>,
+}
+
+impl SameUrl {
+    async fn wait(url: &str) -> Self {
+        let slot = IN_FLIGHT.lock().entry(url.to_string()).or_default().clone();
+        let _turn = slot.clone().lock_owned().await;
+        Self { url: url.to_string(), slot, _turn }
+    }
+}
+
+impl Drop for SameUrl {
+    fn drop(&mut self) {
+        let mut map = IN_FLIGHT.lock();
+        // Ours, the map's and the guard's: nobody else is waiting, so forget the URL.
+        if std::sync::Arc::strong_count(&self.slot) <= 3 {
+            map.remove(&self.url);
+        }
+    }
 }
 
 #[cfg(test)]

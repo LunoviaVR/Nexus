@@ -1,9 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { ipc } from "./ipc";
 import { parseLocation } from "./location";
 import { useFriends } from "@/stores/friends";
 import { useAuth } from "@/stores/auth";
-import type { VrcUser } from "./types";
+import { requestPerson, usePeople } from "@/stores/people";
+import type { UserBrief, VrcUser } from "./types";
 
 export function useWorld(worldId?: string | null) {
   return useQuery({
@@ -53,4 +55,20 @@ export function useAvatar(avatarId?: string | null) {
     enabled: !!avatarId,
     staleTime: 60 * 60_000,
   });
+}
+
+/**
+ * Whoever this is, as well as we know them: you, a friend (live), or anyone else's name and
+ * picture, looked up in the background on first sight. `fresh` is for people around you right
+ * now, whose picture is worth re-checking now and then.
+ */
+export function usePerson(userId?: string | null, fresh = false): Partial<VrcUser> | UserBrief | undefined {
+  const me = useAuth((s) => (userId && s.user?.id === userId ? s.user : undefined));
+  const friend = useFriends((s) => (userId ? s.byId[userId] : undefined));
+  const brief = usePeople((s) => (userId ? s.byId[userId] : undefined));
+  const known = me ?? friend;
+  useEffect(() => {
+    if (userId && !known) requestPerson(userId, fresh);
+  }, [userId, known, fresh]);
+  return known ?? brief;
 }

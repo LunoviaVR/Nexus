@@ -134,7 +134,8 @@ pub async fn auth_restore(app: AppHandle, user_id: Option<String>) -> Result<Log
     st.api.set_cookies(saved.cookies.clone());
     match st.api.get("auth/user", &[]).await {
         Ok(user) if user["id"].is_string() => finish_login(&app, user, None).await,
-        Err(e) if e.status().is_none() => Err(e), // offline: surface the network error
+        // Offline, rate limited or VRChat having trouble: the session may be fine, so keep it.
+        Err(e) if !matches!(e.status(), Some(401 | 403)) => Err(e),
         _ => {
             if let (Some(u), Some(p)) = (saved.username.clone(), saved.password.clone()) {
                 return auth_login(app.clone(), u, p, true).await;
@@ -209,6 +210,14 @@ pub async fn friends_refresh(app: AppHandle) -> Result<RefreshResult> {
 #[tauri::command]
 pub async fn user_get(app: AppHandle, user_id: String, force: Option<bool>) -> Result<Value> {
     sync::cached(&app, "user", &user_id, &format!("users/{user_id}"), 600_000, force.unwrap_or(false)).await
+}
+
+/// Names and pictures for people who may not be friends (instance players, game log sessions).
+/// Returns what's already known; the rest arrive as `user:brief` events. `max_age_ms` asks for
+/// anyone known for longer than that to be looked up again.
+#[tauri::command]
+pub fn users_brief(app: AppHandle, ids: Vec<String>, max_age_ms: Option<i64>) -> HashMap<String, Value> {
+    crate::people::lookup(&app, ids, max_age_ms)
 }
 
 /// Bio, links, badges, languages and represented group live on `/profile/{id}` since VRChat's
@@ -595,9 +604,17 @@ pub async fn user_groups(app: AppHandle, user_id: String) -> Result<Value> {
     sync::cached(&app, "groups", &user_id, &format!("users/{user_id}/groups"), 600_000, false).await
 }
 
+/// `background` is for lookups in bulk (online counts for a whole group list), so they can't
+/// hold up anything you open meanwhile.
 #[tauri::command]
-pub async fn group_get(app: AppHandle, group_id: String) -> Result<Value> {
-    sync::cached(&app, "group", &group_id, &format!("groups/{group_id}?includeRoles=true"), 600_000, false).await
+pub async fn group_get(app: AppHandle, group_id: String, background: Option<bool>) -> Result<Value> {
+    let path = format!("groups/{group_id}?includeRoles=true");
+    let get = sync::cached(&app, "group", &group_id, &path, 600_000, false);
+    if background.unwrap_or(false) {
+        crate::api::background(get).await
+    } else {
+        get.await
+    }
 }
 
 #[tauri::command]
@@ -681,15 +698,23 @@ pub fn my_group_instances_refresh() -> RefreshResult {
         .unwrap_or(RefreshResult { refreshed: true, retry_in_ms: REFRESH_COOLDOWN.as_millis() as u64 })
 }
 
+/// Keep the names and pictures of the people in a members list for the game log.
+fn remember_members(app: &AppHandle, members: &Value) {
+    crate::people::remember(app, members.as_array().into_iter().flatten().map(|m| &m["user"]));
+}
+
 #[tauri::command]
 pub async fn group_members(app: AppHandle, group_id: String, offset: Option<u32>) -> Result<Value> {
-    app.state::<AppState>()
+    let res = app
+        .state::<AppState>()
         .api
         .get(
             &format!("groups/{group_id}/members"),
             &[("n", "100".into()), ("offset", offset.unwrap_or(0).to_string()), ("sort", "joinedAt:asc".into())],
         )
-        .await
+        .await?;
+    remember_members(&app, &res);
+    Ok(res)
 }
 
 #[tauri::command]
@@ -700,7 +725,9 @@ pub async fn group_members_search(app: AppHandle, group_id: String, query: Strin
         .get(&format!("groups/{group_id}/members/search"), &[("query", query), ("n", "100".into())])
         .await?;
     // The search endpoint wraps results as { results: [...] } on some API versions.
-    Ok(res.get("results").cloned().unwrap_or(res))
+    let res = res.get("results").cloned().unwrap_or(res);
+    remember_members(&app, &res);
+    Ok(res)
 }
 
 #[tauri::command]
@@ -774,7 +801,9 @@ pub async fn instance_get(app: AppHandle, location: String) -> Result<Value> {
 
 #[tauri::command]
 pub async fn users_search(app: AppHandle, query: String) -> Result<Value> {
-    app.state::<AppState>().api.get("users", &[("search", query), ("n", "50".into())]).await
+    let res = app.state::<AppState>().api.get("users", &[("search", query), ("n", "50".into())]).await?;
+    crate::people::remember(&app, res.as_array().into_iter().flatten());
+    Ok(res)
 }
 
 #[tauri::command]

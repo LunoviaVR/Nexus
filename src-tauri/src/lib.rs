@@ -7,6 +7,7 @@ mod error;
 mod gamelog;
 mod images;
 mod location;
+mod people;
 mod pipeline;
 mod session;
 mod settings;
@@ -79,6 +80,7 @@ pub fn run() {
             commands::friends_list,
             commands::friends_refresh,
             commands::user_get,
+            commands::users_brief,
             commands::profile_get,
             commands::profile_update,
             commands::me_update,

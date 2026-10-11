@@ -20,10 +20,11 @@ import { EditProfileDialog } from "@/components/EditProfileDialog";
 import { errorText, ipc } from "@/lib/ipc";
 import { applyLogin } from "@/lib/session";
 import { useUpdateChecks } from "@/lib/updates";
-import type { CurrentUser, FeedEntry, GlEvent, InstanceState, VrcNotification, VrcUser } from "@/lib/types";
+import type { CurrentUser, FeedEntry, GlEvent, InstanceState, UserBrief, VrcNotification, VrcUser } from "@/lib/types";
 import { useAuth } from "@/stores/auth";
 import { useFriends } from "@/stores/friends";
 import { useLive } from "@/stores/live";
+import { usePeople } from "@/stores/people";
 import { useUi, type Page } from "@/stores/ui";
 import { Login } from "@/pages/Login";
 import { Home } from "@/pages/Home";
@@ -93,6 +94,7 @@ function useBackendEvents() {
       listen<string[]>("favorites:update", (e) => friends.setFavorites(e.payload)),
       listen<string[]>("watched:update", (e) => friends.setWatched(e.payload)),
       listen<CurrentUser>("user:update", (e) => auth.updateUser(e.payload)),
+      listen<UserBrief>("user:brief", (e) => usePeople.getState().merge([e.payload])),
       listen<FeedEntry>("feed:new", (e) => live.pushFeed(e.payload)),
       listen<GlEvent>("gamelog:event", (e) => live.pushGamelog(e.payload)),
       listen<InstanceState>("gamelog:instance", (e) => live.setInstance(e.payload)),

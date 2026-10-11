@@ -1,6 +1,12 @@
 export type Status = "join me" | "active" | "ask me" | "busy" | "offline";
 export type FriendState = "online" | "active" | "offline";
 
+/** Just enough to show someone who may not be a friend: name, picture, trust rank. */
+export type UserBrief = Pick<
+  VrcUser,
+  "id" | "displayName" | "userIcon" | "profilePicOverride" | "profilePicOverrideThumbnail" | "currentAvatarThumbnailImageUrl" | "iconUrl" | "tags"
+>;
+
 export interface VrcUser {
   id: string;
   displayName: string;

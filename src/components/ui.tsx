@@ -1,7 +1,7 @@
 import * as RDialog from "@radix-ui/react-dialog";
 import * as RTooltip from "@radix-ui/react-tooltip";
 import { X } from "lucide-react";
-import { forwardRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from "react";
+import { forwardRef, useEffect, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from "react";
 import { cn, imgSrc } from "@/lib/format";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
@@ -273,11 +273,41 @@ export function PageHeader({ title, subtitle, children }: { title: string; subti
   );
 }
 
-export function Img({ src, className, alt = "" }: { src?: string | null; className?: string; alt?: string }) {
-  return src ? (
-    <img src={imgSrc(src)} alt={alt} loading="lazy" referrerPolicy="no-referrer" className={cn("object-cover", className)} draggable={false} />
-  ) : (
-    <div className={cn("bg-panel-2", className)} />
+/** A picture that didn't load (usually VRChat briefly limiting requests) gets one more go after this. */
+const IMG_RETRY_MS = 75_000;
+
+export function Img({
+  src,
+  className,
+  alt = "",
+  fallback,
+}: {
+  src?: string | null;
+  className?: string;
+  alt?: string;
+  /** Shown while there's no picture, or it didn't load. */
+  fallback?: ReactNode;
+}) {
+  const [failed, setFailed] = useState<{ src: string; count: number; waiting: boolean } | null>(null);
+  const f = src && failed?.src === src ? failed : null;
+  useEffect(() => {
+    if (!f?.waiting || f.count > 1) return;
+    const t = setTimeout(() => setFailed((x) => (x && x.src === f.src ? { ...x, waiting: false } : x)), IMG_RETRY_MS);
+    return () => clearTimeout(t);
+  }, [f?.src, f?.waiting, f?.count]);
+
+  if (!src || f?.waiting) return <>{fallback ?? <div className={cn("bg-panel-2", className)} />}</>;
+  return (
+    <img
+      key={f?.count ?? 0}
+      src={imgSrc(src)}
+      alt={alt}
+      loading="lazy"
+      referrerPolicy="no-referrer"
+      className={cn("object-cover", className)}
+      draggable={false}
+      onError={() => setFailed({ src, count: (f?.count ?? 0) + 1, waiting: true })}
+    />
   );
 }
 

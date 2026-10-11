@@ -539,6 +539,44 @@ impl Db {
         Ok(())
     }
 
+    /// Several entries of one kind at once, skipping ids that aren't cached.
+    pub fn cache_get_many(&self, kind: &str, ids: &[String]) -> Vec<(String, Value, i64)> {
+        let c = self.conn();
+        let Ok(mut stmt) = c.prepare_cached("SELECT json, fetched_ts FROM cache WHERE kind = ? AND id = ?") else {
+            return vec![];
+        };
+        ids.iter()
+            .filter_map(|id| {
+                let (json, ts): (String, i64) = stmt.query_row([kind, id.as_str()], |r| Ok((r.get(0)?, r.get(1)?))).ok()?;
+                Some((id.clone(), serde_json::from_str(&json).ok()?, ts))
+            })
+            .collect()
+    }
+
+    /// Store several entries of one kind in one go (one transaction unless one is already open).
+    pub fn cache_put_many(&self, kind: &str, rows: &[(String, Value)]) -> Result<()> {
+        let c = self.conn();
+        let own_tx = c.is_autocommit();
+        if own_tx {
+            c.execute_batch("BEGIN")?;
+        }
+        let now = now_ms();
+        let res = (|| -> Result<()> {
+            let mut stmt = c.prepare_cached(
+                "INSERT INTO cache (kind, id, json, fetched_ts) VALUES (?1, ?2, ?3, ?4)
+                 ON CONFLICT(kind, id) DO UPDATE SET json = excluded.json, fetched_ts = excluded.fetched_ts",
+            )?;
+            for (id, value) in rows {
+                stmt.execute(params![kind, id, value.to_string(), now])?;
+            }
+            Ok(())
+        })();
+        if own_tx {
+            c.execute_batch(if res.is_ok() { "COMMIT" } else { "ROLLBACK" })?;
+        }
+        res
+    }
+
     pub fn cache_clear(&self) -> Result<()> {
         self.conn().execute("DELETE FROM cache", [])?;
         Ok(())
@@ -1093,6 +1131,20 @@ mod tests {
         assert_eq!(seen[1].name, "Fox");
         assert_eq!((seen[1].times, seen[1].first_seen, seen[1].last_seen), (2, 1_000, 2_000));
         assert_eq!(seen[1].last_location.as_deref(), Some("wrld_b:2"));
+    }
+
+    #[test]
+    fn caches_many_at_once_even_inside_an_open_transaction() {
+        let db = Db::memory().unwrap();
+        let rows = vec![("usr_a".to_string(), serde_json::json!({ "displayName": "A" })), ("usr_b".to_string(), serde_json::json!({ "displayName": "B" }))];
+        db.cache_put_many("brief", &rows).unwrap();
+        // The game log tailer keeps a transaction open while it writes a chunk.
+        db.conn().execute_batch("BEGIN").unwrap();
+        db.cache_put_many("brief", &[("usr_c".to_string(), serde_json::json!({ "displayName": "C" }))]).unwrap();
+        db.conn().execute_batch("COMMIT").unwrap();
+        let got = db.cache_get_many("brief", &["usr_a".into(), "usr_x".into(), "usr_c".into()]);
+        let names: Vec<_> = got.iter().map(|(id, v, _)| (id.as_str(), v["displayName"].as_str().unwrap())).collect();
+        assert_eq!(names, [("usr_a", "A"), ("usr_c", "C")]);
     }
 
     #[test]

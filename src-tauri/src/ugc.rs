@@ -77,7 +77,7 @@ pub fn spawn(app: AppHandle) {
             if seen.len() > 200 {
                 seen.pop_front();
             }
-            if let Err(e) = handle(&app, job).await {
+            if let Err(e) = crate::api::background(handle(&app, job)).await {
                 eprintln!("ugc save failed: {e}");
             }
             // Be gentle: these come in bursts when joining a busy instance.

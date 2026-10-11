@@ -32,6 +32,13 @@ const RECONNECT_EVERY: Duration = Duration::from_secs(10);
 const TRAVEL_GRACE: Duration = Duration::from_secs(15);
 /// How soon to retry a world or instance-owner lookup that failed.
 const LOOKUP_RETRY: Duration = Duration::from_secs(60);
+/// The longest a lookup may hold up the activity; past that it's retried later.
+const LOOKUP_WAIT: Duration = Duration::from_secs(15);
+
+/// Run a VRChat lookup from this thread in the background lane, giving up after `LOOKUP_WAIT`.
+fn block_on_briefly<F: std::future::Future>(fut: F) -> Option<F::Output> {
+    tauri::async_runtime::block_on(async { tokio::time::timeout(LOOKUP_WAIT, crate::api::background(fut)).await.ok() })
+}
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase", tag = "state")]
@@ -372,8 +379,8 @@ impl Presence {
             None => true,
         };
         if stale {
-            let fetched = tauri::async_runtime::block_on(crate::sync::world(&self.app, wid, false));
-            self.world = Some((wid.to_string(), fetched.ok().map(|w| WorldInfo::from_api(&w)), Instant::now()));
+            let fetched = block_on_briefly(crate::sync::world(&self.app, wid, false)).and_then(|r| r.ok());
+            self.world = Some((wid.to_string(), fetched.map(|w| WorldInfo::from_api(&w)), Instant::now()));
         }
         self.world.as_ref().and_then(|(_, info, _)| info.clone())
     }
@@ -388,7 +395,7 @@ impl Presence {
             None => true,
         };
         if stale {
-            let name = tauri::async_runtime::block_on(crate::sync::owner_name(&self.app, id));
+            let name = block_on_briefly(crate::sync::owner_name(&self.app, id)).flatten();
             self.owner = Some((id.to_string(), name, Instant::now()));
         }
         self.owner.as_ref().and_then(|(_, name, _)| name.clone())

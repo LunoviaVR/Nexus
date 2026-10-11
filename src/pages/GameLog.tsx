@@ -2,7 +2,7 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { ArrowUp, ChevronDown, Clock, LogIn, LogOut, ScrollText, Search, Shirt, Users, Video } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { withDays } from "@/components/FeedRow";
-import { InstanceBadge, UserAvatar } from "@/components/people";
+import { InstanceBadge, PersonAvatar } from "@/components/people";
 import { Button, Card, Chip, Empty, Input, PageHeader, SectionTitle, Segmented, Skeleton } from "@/components/ui";
 import { clock, cn, dateTime, duration } from "@/lib/format";
 import { ipc } from "@/lib/ipc";
@@ -173,13 +173,8 @@ function SessionDetail({ players, videos, live }: { players: SessionPlayer[]; vi
                 title={p.stints.map(span).join("\n")}
                 className="flex w-full items-center gap-3 border-b border-line/50 px-3 py-2 text-left last:border-0 enabled:hover:bg-hover/50 enabled:cursor-pointer"
               >
-                {f ? (
-                  <UserAvatar user={f} size={26} dot={false} />
-                ) : (
-                  <span className="flex size-[26px] shrink-0 items-center justify-center rounded-full bg-panel-2 text-[11px] font-semibold uppercase text-subtle">
-                    {p.displayName.slice(0, 1)}
-                  </span>
-                )}
+                {/* Friends, you and everyone else; others are looked up only once a session is opened. */}
+                <PersonAvatar userId={p.userId} name={p.displayName} size={26} fresh={live} />
                 <div className="min-w-0 flex-1 leading-tight">
                   <div className={cn("truncate text-[13px] font-medium", f && "text-accent")}>
                     {p.displayName}

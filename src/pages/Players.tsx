@@ -1,10 +1,10 @@
 import { Gamepad2, LogOut, Search, Users } from "lucide-react";
 import { useMemo, useState } from "react";
-import { InstanceBadge, UserAvatar } from "@/components/people";
+import { InstanceBadge, PersonAvatar, TrustLabel } from "@/components/people";
 import { Card, Empty, Img, Input, PageHeader, SectionTitle, Segmented } from "@/components/ui";
 import { clock, cn, duration } from "@/lib/format";
 import { parseLocation } from "@/lib/location";
-import { useWorld } from "@/lib/queries";
+import { usePerson, useWorld } from "@/lib/queries";
 import { useNow } from "@/lib/useNow";
 import type { Player, VrcUser } from "@/lib/types";
 import { useAuth } from "@/stores/auth";
@@ -16,26 +16,22 @@ type Sort = "joined" | "name";
 
 function PlayerRow({ pl, friend, me, now }: { pl: Player; friend?: VrcUser; me: boolean; now: number }) {
   const openUser = useUi((s) => s.openUser);
+  // Everyone gets a picture: you and friends from live state, anyone else looked up once.
+  const person = usePerson(pl.userId, true);
   return (
     <button
       onClick={() => pl.userId && openUser(pl.userId)}
       disabled={!pl.userId}
       className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left enabled:hover:bg-hover enabled:cursor-pointer"
     >
-      {friend ? (
-        <UserAvatar user={friend} size={32} />
-      ) : (
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-panel-2 text-xs font-semibold uppercase text-subtle">
-          {pl.displayName.slice(0, 1)}
-        </span>
-      )}
+      <PersonAvatar userId={pl.userId} name={pl.displayName} size={32} dot={!!friend || me} fresh />
       <div className="min-w-0 flex-1 leading-tight">
         <div className={cn("truncate text-[13px] font-medium", friend && "text-accent")}>
           {pl.displayName}
           {me && <span className="ml-1.5 font-normal text-subtle">(you)</span>}
         </div>
         <div className="truncate text-[11.5px] text-muted">
-          {friend ? friend.statusDescription || "Friend" : me ? "That's you" : "Not a friend"}
+          {friend ? friend.statusDescription || "Friend" : me ? "That's you" : person?.tags ? <TrustLabel tags={person.tags} /> : "Not a friend"}
         </div>
       </div>
       <div className="shrink-0 text-right leading-tight">
@@ -182,13 +178,7 @@ export function Players() {
                   disabled={!e.userId}
                   className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left opacity-75 enabled:hover:bg-hover enabled:hover:opacity-100 enabled:cursor-pointer"
                 >
-                  {friend ? (
-                    <UserAvatar user={friend} size={32} dot={false} />
-                  ) : (
-                    <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-panel-2 text-xs font-semibold uppercase text-subtle">
-                      {e.displayName!.slice(0, 1)}
-                    </span>
-                  )}
+                  <PersonAvatar userId={e.userId} name={e.displayName!} size={32} />
                   <div className={cn("min-w-0 flex-1 truncate text-[13px] font-medium", friend && "text-accent")}>{e.displayName}</div>
                   <span className="inline-flex shrink-0 items-center gap-1.5 text-[11.5px] tabular-nums text-subtle">
                     <LogOut className="size-3" /> left {clock(e.ts)}

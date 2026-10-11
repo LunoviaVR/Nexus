@@ -1,6 +1,6 @@
 //! VRChat Pipeline websocket: live friend, user and notification events.
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use futures_util::StreamExt;
 use serde_json::{json, Value};
@@ -11,10 +11,17 @@ use crate::api::USER_AGENT;
 use crate::state::AppState;
 use crate::sync::{self, str_of};
 
+/// A connection has to last this long before a drop counts as a fresh start (reconnect quickly
+/// and resync); a connection that keeps dropping right away backs off instead.
+const STABLE_AFTER: Duration = Duration::from_secs(30);
+/// Missed events are caught up with a full friend refresh, at most this often.
+const RESYNC_EVERY: Duration = Duration::from_secs(60);
+
 pub fn start(app: AppHandle) -> tauri::async_runtime::JoinHandle<()> {
     tauri::async_runtime::spawn(async move {
         let mut backoff = 2u64;
         let mut first = true;
+        let mut last_resync: Option<Instant> = None;
         loop {
             let Some(token) = app.state::<AppState>().api.auth_token() else { break };
             let mut req = match format!("wss://pipeline.vrchat.cloud/?authToken={token}").into_client_request() {
@@ -25,10 +32,11 @@ pub fn start(app: AppHandle) -> tauri::async_runtime::JoinHandle<()> {
 
             match tokio_tungstenite::connect_async(req).await {
                 Ok((mut ws, _)) => {
-                    backoff = 2;
+                    let connected = Instant::now();
                     let _ = app.emit("pipeline:status", true);
-                    if !first {
+                    if !first && last_resync.is_none_or(|t| t.elapsed() >= RESYNC_EVERY) {
                         // We may have missed events while disconnected; resync.
+                        last_resync = Some(Instant::now());
                         let a = app.clone();
                         tauri::async_runtime::spawn(async move {
                             let _ = sync::refresh_friends(&a).await;
@@ -43,6 +51,9 @@ pub fn start(app: AppHandle) -> tauri::async_runtime::JoinHandle<()> {
                         }
                     }
                     let _ = app.emit("pipeline:status", false);
+                    if connected.elapsed() >= STABLE_AFTER {
+                        backoff = 2;
+                    }
                 }
                 Err(WsError::Http(resp)) if resp.status() == 401 => {
                     let _ = app.emit("session:expired", ());
@@ -77,7 +88,7 @@ async fn handle(app: &AppHandle, text: &str) {
             }
             let world_name = match content["world"]["name"].as_str() {
                 Some(n) => Some(n.to_string()),
-                None => sync::world_name_for(app, &loc).await,
+                None => sync::world_name_quick(app, &loc).await,
             };
             let came_online = kind == "friend-online";
             sync::apply_friend(app, &user_id, patch, Some("online"), world_name);

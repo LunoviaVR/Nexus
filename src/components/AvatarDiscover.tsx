@@ -30,6 +30,9 @@ const RATING_TONE: Record<string, string> = {
 const ratingFor = (a: DiscoverAvatar, p: Platform) =>
   p === "pc" ? a.performance?.pc_rating : p === "android" ? a.performance?.android_rating : a.performance?.ios_rating;
 
+/** The platforms (of the ones we filter on) an avatar has a build for. */
+const platformsOf = (a: DiscoverAvatar) => PLATFORMS.map((p) => p.id).filter((p) => a.compatibility?.includes(p));
+
 const allTags = (a: DiscoverAvatar) => [...(a.tags?.author_tags ?? []), ...(a.tags?.non_content_tags ?? [])];
 
 export function AvatarDiscover() {
@@ -38,7 +41,7 @@ export function AvatarDiscover() {
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<Mode>("any");
-  // Every platform starts on; switching one off drops avatars you could only use there.
+  // Every platform starts on; switching one off hides every avatar that has a build for it.
   const [platforms, setPlatforms] = useState<Set<Platform>>(() => new Set(PLATFORMS.map((p) => p.id)));
   const [minPerf, setMinPerf] = useState<MinPerf>("any");
   const [hideMature, setHideMature] = useState(true);
@@ -66,10 +69,11 @@ export function AvatarDiscover() {
     return loaded.filter((a) => {
       if (mode === "author" && !a.author.name.toLowerCase().includes(q)) return false;
       if (mode === "tags" && !allTags(a).some((t) => t.toLowerCase().includes(q))) return false;
-      // The platforms you have on that this avatar has a build for; it needs at least one (unless avtrDB didn't say).
-      const usable = [...platforms].filter((p) => a.compatibility?.includes(p));
-      if (a.compatibility?.length && !usable.length) return false;
-      if (minPerf !== "any" && !usable.some((p) => (RANK[ratingFor(a, p) ?? ""] ?? -1) >= RANK[minPerf])) return false;
+      // Hidden if it has a build for any platform you switched off (unless avtrDB didn't say).
+      const builds = platformsOf(a);
+      if (builds.some((p) => !platforms.has(p))) return false;
+      if (a.compatibility?.length && !builds.length) return false;
+      if (minPerf !== "any" && !builds.some((p) => (RANK[ratingFor(a, p) ?? ""] ?? -1) >= RANK[minPerf])) return false;
       if (hideMature && (a.explicit || (a.tags?.content_tags?.length ?? 0) > 0)) return false;
       if (impostorOnly && !a.performance?.has_impostor) return false;
       return true;
@@ -202,7 +206,7 @@ export function AvatarDiscover() {
                       </button>
                     </div>
                     <div className="flex flex-wrap gap-1">
-                      {PLATFORMS.filter((p) => platforms.has(p.id) && a.compatibility?.includes(p.id)).map((p) => {
+                      {PLATFORMS.filter((p) => a.compatibility?.includes(p.id)).map((p) => {
                         const r = ratingFor(a, p.id);
                         return (
                           <span key={p.id} title={r ? `${p.label}: ${r}` : p.label} className="rounded bg-panel-2 px-1.5 py-px text-[10.5px] font-semibold">

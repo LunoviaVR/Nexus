@@ -107,6 +107,13 @@ feed.unshift(
   { id: 2003, ts: now - 180_000, kind: "bio", userId: friends[5].id, displayName: friends[5].displayName, prev: "", next: "Hi there ǃ New here․" },
 );
 
+/** People in the game log who aren't friends; the last two predate VRChat logging user ids. */
+const strangers: { id?: string; displayName: string }[] = names.slice(0, 7).map((n, i) => ({ id: i < 5 ? `usr_s${i}` : undefined, displayName: `${n}Stranger${i}` }));
+const strangerBrief = (id: string) => {
+  const s = strangers.find((x) => x.id === id);
+  return s && { id, displayName: s.displayName, currentAvatarThumbnailImageUrl: img("stranger" + id, 128, 128), tags: ["system_trust_known"] };
+};
+
 const sessions: GlSession[] = Array.from({ length: 12 }, (_, i) => ({
   id: i,
   ts: now - i * 3 * 3600000,
@@ -114,7 +121,7 @@ const sessions: GlSession[] = Array.from({ length: 12 }, (_, i) => ({
   worldId: W(i % 8),
   worldName: worlds[i % 8].name,
   durationMs: (20 + i * 11) * 60000,
-  players: friends.slice(0, 3 + (i % 5)).map((f, j) => ({ userId: f.id, displayName: f.displayName, joinedTs: now - i * 3 * 3600000 + j * 60000, leftTs: now - i * 3 * 3600000 + (j + 15) * 60000 })),
+  players: [...friends.slice(0, 3 + (i % 5)), ...strangers.slice(i % 3, 4 + (i % 3))].map((f, j) => ({ userId: f.id ?? null, displayName: f.displayName, joinedTs: now - i * 3 * 3600000 + j * 60000, leftTs: now - i * 3 * 3600000 + (j + 15) * 60000 })),
   videos: i % 3 === 0 ? [{ ts: now - i * 3 * 3600000 + 600000, url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" }] : [],
 }));
 
@@ -151,7 +158,7 @@ export function installMock() {
             location: locs[0],
             worldName: worlds[0].name,
             since: now - 47 * 60000,
-            players: [...friends.slice(0, 3), ...names.slice(0, 6).map((n, i) => ({ id: undefined, displayName: `${n}Stranger${i}` }))].map((f, i) => ({
+            players: [me, ...friends.slice(0, 3), ...strangers].map((f, i) => ({
               userId: f.id ?? null,
               displayName: f.displayName,
               joinedTs: now - (40 - i * 4) * 60000,
@@ -159,6 +166,12 @@ export function installMock() {
           };
         case "world_get":
           return worlds.find((w) => w.id === a.worldId) ?? worlds[0];
+        case "users_brief": {
+          // Half are known already; the rest "arrive" later, like the backend's background lookups.
+          const ids = (a.ids as string[]).filter((id) => strangerBrief(id));
+          setTimeout(() => ids.filter((_, i) => i % 2).forEach((id) => emit("user:brief", strangerBrief(id))), 1500);
+          return Object.fromEntries(ids.filter((_, i) => i % 2 === 0).map((id) => [id, strangerBrief(id)]));
+        }
         case "user_get":
           return friends.find((f) => f.id === a.userId) ?? friends[0];
         case "instance_get":

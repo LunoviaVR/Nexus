@@ -37,6 +37,7 @@ import type {
   VrcGroupPost,
   VrcProfile,
   VrcUser,
+  UserBrief,
   World,
 } from "./types";
 
@@ -70,6 +71,7 @@ export const ipc = {
   friends: () => invoke<{ friends: VrcUser[]; favorites: string[] }>("friends_list"),
   refreshFriends: () => invoke<{ refreshed: boolean; retryInMs: number }>("friends_refresh"),
   user: (userId: string, force = false) => invoke<VrcUser>("user_get", { userId, force }),
+  usersBrief: (ids: string[], maxAgeMs?: number) => invoke<Record<string, UserBrief>>("users_brief", { ids, maxAgeMs: maxAgeMs ?? null }),
   profile: (userId: string, force = false) => invoke<VrcProfile>("profile_get", { userId, force }),
   updateProfile: (patch: ProfilePatch) => invoke<VrcProfile>("profile_update", { patch }),
   updateMe: (pronouns?: string, toggles?: Partial<Record<"allowAvatarCopying" | "isBoopingEnabled" | "receiveMobileInvitations" | "hasSharedConnectionsOptOut" | "hasDiscordFriendsOptOut", boolean>>) =>
@@ -84,7 +86,8 @@ export const ipc = {
   userGroups: (userId: string) => invoke<VrcGroup[]>("user_groups", { userId }),
   userMutuals: (userId: string) =>
     invoke<{ counts: { friends?: number; groups?: number }; friends: VrcUser[] }>("user_mutuals", { userId }),
-  group: (groupId: string) => invoke<VrcGroupDetail>("group_get", { groupId }),
+  /** `background`: one of many lookups at once, which shouldn't hold up anything you open. */
+  group: (groupId: string, background = false) => invoke<VrcGroupDetail>("group_get", { groupId, background }),
   groupInstances: (groupId: string) => invoke<VrcGroupInstance[]>("group_instances", { groupId }),
   searchGroups: (query: string, offset = 0) => invoke<VrcGroupDetail[]>("groups_search", { query, offset }),
   joinGroup: (groupId: string) => invoke<{ membershipStatus?: string }>("group_join", { groupId }),

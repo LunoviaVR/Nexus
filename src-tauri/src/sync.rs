@@ -2,7 +2,7 @@
 //! feed diffs, cached lookups and desktop notifications.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 use std::time::{Duration, Instant};
 
 use parking_lot::Mutex;
@@ -12,7 +12,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
 
 use crate::db::{now_ms, FeedEntry};
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::location;
 use crate::settings::Scope;
 use crate::state::AppState;
@@ -66,26 +66,71 @@ pub fn in_scope(app: &AppHandle, scope: Scope, user_id: &str) -> bool {
     }
 }
 
+/// Lookups in progress, by cache key: asking for the same thing twice at once fetches it once.
+static IN_FLIGHT: LazyLock<Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>> = LazyLock::new(Default::default);
+/// Things VRChat says don't exist (a deleted account, a removed world), and its message for them.
+static MISSING: LazyLock<Mutex<HashMap<String, (Instant, String)>>> = LazyLock::new(Default::default);
+const MISSING_FOR: Duration = Duration::from_secs(30 * 60);
+
 /// Fetch with a SQLite-backed TTL cache. Falls back to stale data when the API fails.
 pub async fn cached(app: &AppHandle, kind: &str, id: &str, path: &str, ttl_ms: i64, force: bool) -> Result<Value> {
     let st = app.state::<AppState>();
+    let key = format!("{kind}:{id}");
+    let started = now_ms();
     let hit = st.db.cache_get(kind, id);
     if !force {
         if let Some((v, ts)) = &hit {
-            if now_ms() - ts < ttl_ms {
+            if started - ts < ttl_ms {
                 return Ok(v.clone());
             }
         }
+        if let Some((at, message)) = MISSING.lock().get(&key) {
+            if at.elapsed() < MISSING_FOR {
+                return Err(Error::Api { status: 404, message: message.clone() });
+            }
+        }
     }
+
+    let slot = IN_FLIGHT.lock().entry(key.clone()).or_default().clone();
+    let result = {
+        let _turn = slot.lock().await;
+        match st.db.cache_get(kind, id) {
+            // Whoever went first just fetched it.
+            Some((v, ts)) if ts >= started || (!force && now_ms() - ts < ttl_ms) => Ok(v),
+            _ => fetch_into_cache(app, kind, id, path, &key).await,
+        }
+    };
+    {
+        let mut map = IN_FLIGHT.lock();
+        if Arc::strong_count(&slot) <= 2 {
+            map.remove(&key);
+        }
+    }
+    result.or_else(|e| match hit {
+        Some((v, _)) if e.status() != Some(404) => Ok(v),
+        _ => Err(e),
+    })
+}
+
+async fn fetch_into_cache(app: &AppHandle, kind: &str, id: &str, path: &str, key: &str) -> Result<Value> {
+    let st = app.state::<AppState>();
     match st.api.get(path, &[]).await {
         Ok(v) => {
             let _ = st.db.cache_put(kind, id, &v);
+            if kind == "user" {
+                crate::people::remember(app, [&v]);
+            }
+            MISSING.lock().remove(key);
             Ok(v)
         }
-        Err(e) => match hit {
-            Some((v, _)) if e.status() != Some(404) => Ok(v),
-            _ => Err(e),
-        },
+        Err(e) => {
+            if e.status() == Some(404) {
+                let mut missing = MISSING.lock();
+                missing.retain(|_, (at, _)| at.elapsed() < MISSING_FOR);
+                missing.insert(key.to_string(), (Instant::now(), e.to_string()));
+            }
+            Err(e)
+        }
     }
 }
 
@@ -120,6 +165,30 @@ pub async fn owner_name(app: &AppHandle, owner_id: &str) -> Option<String> {
 pub async fn world_name_for(app: &AppHandle, loc: &str) -> Option<String> {
     let wid = location::world_id(loc)?;
     world(app, wid, false).await.ok().and_then(|w| w["name"].as_str().map(String::from))
+}
+
+/// A world's name for the live pipeline, which mustn't stall on a lookup: any name we've seen
+/// will do (an old one is refreshed in the background), and a lookup that takes more than a
+/// moment finishes in the background instead, ready for next time.
+pub async fn world_name_quick(app: &AppHandle, loc: &str) -> Option<String> {
+    const TTL_MS: i64 = 3_600_000;
+    let wid = location::world_id(loc)?.to_string();
+    let known = app.state::<AppState>().db.cache_get("world", &wid);
+    if let Some((w, ts)) = &known {
+        if let Some(name) = w["name"].as_str() {
+            if now_ms() - ts >= TTL_MS {
+                let (a, wid) = (app.clone(), wid.clone());
+                tauri::async_runtime::spawn(crate::api::background(async move {
+                    let _ = world(&a, &wid, false).await;
+                }));
+            }
+            return Some(name.to_string());
+        }
+    }
+    let a = app.clone();
+    let lookup = tauri::async_runtime::spawn(async move { world(&a, &wid, false).await.ok() });
+    let w = tokio::time::timeout(Duration::from_secs(3), lookup).await.ok()?.ok()??;
+    w["name"].as_str().map(String::from)
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -211,6 +280,8 @@ pub async fn refresh_friends(app: &AppHandle) -> Result<()> {
 
     let mut list = st.api.fetch_friends(false).await?;
     list.extend(st.api.fetch_friends(true).await?);
+    // So the game log can still show who someone was after they stop being a friend.
+    crate::people::remember(app, list.iter().chain([&me]));
 
     let had_snapshot = !st.session.read().friends.is_empty();
     let mut seen = HashSet::new();
@@ -473,11 +544,11 @@ pub fn check_profile_soon(app: &AppHandle, user_id: &str) {
         last.insert(user_id.to_string(), Instant::now());
     }
     let (app, id) = (app.clone(), user_id.to_string());
-    tauri::async_runtime::spawn(async move {
+    tauri::async_runtime::spawn(crate::api::background(async move {
         if let Err(e) = fetch_profile(&app, &id).await {
             eprintln!("profile check for {id} failed: {e}");
         }
-    });
+    }));
 }
 
 /// VRChat sends no event when someone edits their bio on the website, in VRCX, or while offline,
@@ -508,23 +579,20 @@ fn next_sweep_target(app: &AppHandle) -> Option<String> {
     best.map(|(_, id)| id.clone())
 }
 
+/// Runs in the background lane, so it only uses spare capacity and sits out any rate limit.
 pub fn spawn_bio_sweep(app: AppHandle) -> tauri::async_runtime::JoinHandle<()> {
-    tauri::async_runtime::spawn(async move {
+    tauri::async_runtime::spawn(crate::api::background(async move {
         // Let the login burst (friends list, favorites, pipeline) settle first.
         tokio::time::sleep(Duration::from_secs(30)).await;
         loop {
             if let Some(id) = next_sweep_target(&app) {
                 if let Err(e) = fetch_profile(&app, &id).await {
                     eprintln!("bio sweep for {id} failed: {e}");
-                    // Back off on rate limits rather than hammering the API.
-                    if e.status() == Some(429) {
-                        tokio::time::sleep(Duration::from_secs(120)).await;
-                    }
                 }
             }
             tokio::time::sleep(SWEEP_PAUSE).await;
         }
-    })
+    }))
 }
 
 pub fn remove_friend(app: &AppHandle, id: &str) {

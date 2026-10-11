@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { ACCESS_LABEL, parseLocation, REGION_LABEL, isJoinable } from "@/lib/location";
 import { cn, presenceColor, STATUS_LABEL, trustRank, userImage } from "@/lib/format";
 import { errorText, ipc } from "@/lib/ipc";
-import { useWorldName } from "@/lib/queries";
+import { usePerson, useWorldName } from "@/lib/queries";
 import { useAuth } from "@/stores/auth";
 import { useFriends } from "@/stores/friends";
 import { useUi } from "@/stores/ui";
@@ -15,6 +15,18 @@ export function StatusDot({ user, className }: { user?: Partial<VrcUser>; classN
   const color = presenceColor(user?.state, user?.status);
   const label = user?.state === "active" ? "Active on web" : user?.state === "offline" ? "Offline" : STATUS_LABEL[user?.status ?? "active"];
   return <span title={label} className={cn("inline-block size-2.5 shrink-0 rounded-full ring-2 ring-panel", color, className)} />;
+}
+
+/** A round placeholder with someone's first letter, for when there's no picture (yet). */
+export function Initial({ name, size = 32, className }: { name?: string | null; size?: number; className?: string }) {
+  return (
+    <span
+      className={cn("flex shrink-0 items-center justify-center rounded-full bg-panel-2 font-semibold uppercase text-subtle", className)}
+      style={{ width: size, height: size, fontSize: Math.max(10, Math.round(size * 0.4)) }}
+    >
+      {[...(name?.trim() || "?")][0]}
+    </span>
+  );
 }
 
 export function UserAvatar({
@@ -30,12 +42,37 @@ export function UserAvatar({
 }) {
   return (
     <div className={cn("relative shrink-0", className)} style={{ width: size, height: size }}>
-      <Img src={userImage(user)} className="size-full rounded-full bg-panel-2" />
+      <Img src={userImage(user)} className="size-full rounded-full bg-panel-2" fallback={<Initial name={user?.displayName} size={size} />} />
       {dot && user && (
         <StatusDot user={user} className={cn("absolute -bottom-0.5 -right-0.5", size >= 56 ? "size-3.5 ring-[3px]" : "")} />
       )}
     </div>
   );
+}
+
+/**
+ * Anyone's picture, friend or not: you and friends come from live state, everyone else is
+ * looked up in the background on first sight (see `usePerson`). Shows their initial until then,
+ * or for good when the log never recorded who they were. `fresh` re-checks people around you now.
+ */
+export function PersonAvatar({
+  userId,
+  name,
+  size = 32,
+  dot = false,
+  fresh = false,
+}: {
+  userId?: string | null;
+  name: string;
+  size?: number;
+  /** Presence dot, shown for you and friends only. */
+  dot?: boolean;
+  fresh?: boolean;
+}) {
+  const person = usePerson(userId, fresh);
+  if (!userImage(person)) return <Initial name={name} size={size} />;
+  const live = !!person && "state" in person && !!person.state;
+  return <UserAvatar user={{ displayName: name, ...person }} size={size} dot={dot && live} />;
 }
 
 export function TrustLabel({ tags, className }: { tags?: string[]; className?: string }) {
