@@ -595,6 +595,16 @@ pub fn spawn_bio_sweep(app: AppHandle) -> tauri::async_runtime::JoinHandle<()> {
     }))
 }
 
+/// Friends you just unfriended or blocked yourself, so VRChat's "friend-delete" for them doesn't
+/// tell you about something you did.
+static EXPECTED_UNFRIENDS: LazyLock<Mutex<HashMap<String, Instant>>> = LazyLock::new(Default::default);
+
+pub fn expect_unfriend(id: &str) {
+    let mut m = EXPECTED_UNFRIENDS.lock();
+    m.retain(|_, t| t.elapsed() < Duration::from_secs(120));
+    m.insert(id.to_string(), Instant::now());
+}
+
 pub fn remove_friend(app: &AppHandle, id: &str) {
     let st = app.state::<AppState>();
     let removed = st.session.write().friends.remove(id);
@@ -603,7 +613,8 @@ pub fn remove_friend(app: &AppHandle, id: &str) {
         let name = str_of(&f, "displayName");
         let _ = st.db.friend_log_set(&owner, id, name, false);
         push_feed(app, &owner, "unfriend", id, name, None, None, None, None);
-        if st.settings().notify_unfriends {
+        let yours = EXPECTED_UNFRIENDS.lock().remove(id).is_some_and(|t| t.elapsed() < Duration::from_secs(120));
+        if st.settings().notify_unfriends && !yours {
             toast(app, &format!("{name} is no longer your friend"), "");
         }
     }

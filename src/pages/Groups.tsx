@@ -26,7 +26,7 @@ export function Groups() {
       ) : mine.error ? (
         <Empty icon={<GroupIcon />} title="Couldn't load your groups" hint={errorText(mine.error)} />
       ) : mine.data?.length ? (
-        <SortableGroups groups={mine.data} actions={discoverButton} />
+        <SortableGroups groups={mine.data} actions={discoverButton} ownerId={me?.id} />
       ) : (
         <Empty icon={<GroupIcon />} title="You're not in any groups yet" hint="Find some to join.">
           <Button variant="primary" icon={<Compass className="size-4" />} onClick={() => setDiscover(true)}>

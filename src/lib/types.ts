@@ -80,6 +80,8 @@ export interface VrcGroup {
   description?: string;
   iconUrl?: string | null;
   bannerUrl?: string | null;
+  iconId?: string | null;
+  bannerId?: string | null;
   memberCount?: number;
   mutualGroup?: boolean;
   isRepresenting?: boolean;
@@ -103,12 +105,75 @@ export interface VrcGroupDetail extends VrcGroup {
   myMember?: { permissions?: string[]; roleIds?: string[] } | null;
 }
 
+/** `/groups/{id}/roles`: a role with the permissions it grants ("*" is the owner's). */
+export interface VrcGroupRole {
+  id: string;
+  name: string;
+  description?: string;
+  order?: number;
+  permissions?: string[];
+  isManagementRole?: boolean;
+  isSelfAssignable?: boolean;
+  requiresTwoFactor?: boolean;
+}
+
+/** `/groups/{id}/permissions`: VRChat's own name and help text for a permission key. */
+export interface VrcGroupPermission {
+  name: string;
+  displayName?: string;
+  help?: string;
+  isManagementPermission?: boolean;
+  allowedToAdd?: boolean;
+}
+
 export interface VrcGroupMember {
   id: string;
   userId?: string;
   roleIds?: string[];
+  /** Management roles, listed apart from `roleIds`. */
+  mRoleIds?: string[];
   joinedAt?: string;
+  /** For a join request, when they asked. */
+  createdAt?: string;
+  bannedAt?: string | null;
+  managerNotes?: string;
   user: { id: string; displayName: string; iconUrl?: string; thumbnailUrl?: string };
+}
+
+/** Player moderations Nexus can turn on and off from a profile. */
+export type ModerationKind = "block" | "mute" | "muteChat" | "hideAvatar";
+
+/** One of your own moderations of someone (`/auth/user/playermoderations`). */
+export interface PlayerModeration {
+  id: string;
+  /** A `ModerationKind`, or one Nexus only reads, like "showAvatar" or "unmute". */
+  type: string;
+  targetUserId: string;
+  targetDisplayName?: string;
+  created?: string;
+}
+
+/** The fields Nexus can change on a group. */
+export interface GroupPatch {
+  name?: string;
+  description?: string;
+  rules?: string;
+  links?: string[];
+  languages?: string[];
+  joinState?: "open" | "request" | "invite" | "closed";
+  /** One of your icons (`file_…`). */
+  iconId?: string;
+  /** One of your gallery images (`file_…`). */
+  bannerId?: string;
+}
+
+export interface GroupInstanceRequest {
+  worldId: string;
+  access: "members" | "plus" | "public";
+  region: "us" | "use" | "eu" | "jp";
+  roleIds?: string[];
+  queue?: boolean;
+  ageGate?: boolean;
 }
 
 export interface VrcGroupInstance {
@@ -140,6 +205,8 @@ export interface VrcGroupPost {
   imageUrl?: string | null;
   createdAt?: string;
   authorId?: string;
+  visibility?: "group" | "public" | string;
+  roleIds?: string[];
 }
 
 /** `/profile/{id}`: where bio, links, badges and languages live since VRChat's 2026 API change. */

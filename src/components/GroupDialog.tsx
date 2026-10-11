@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { BadgeCheck, CalendarDays, Copy, Crown, ExternalLink, Globe, Link as LinkIcon, Lock, LogIn, Megaphone, Search, Send, Users } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Ban, BadgeCheck, CalendarDays, Copy, Crown, ExternalLink, Globe, Link as LinkIcon, Lock, LogIn, Megaphone, Plus, Search, Send, UserCog, UserPlus, Users } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { ago, cn, list } from "@/lib/format";
 import { errorText, ipc } from "@/lib/ipc";
@@ -9,12 +9,28 @@ import type { VrcGroupDetail, VrcGroupMember } from "@/lib/types";
 import { useFriends } from "@/stores/friends";
 import { useUi } from "@/stores/ui";
 import { ErrorBoundary } from "./ErrorBoundary";
+import {
+  BansList,
+  CloseInstanceButton,
+  DeletePostButton,
+  EditGroupDialog,
+  ManagePanel,
+  MemberDialog,
+  memberRoleIds,
+  NewInstanceDialog,
+  NewPostDialog,
+  RequestsList,
+  useGroupPerms,
+  useJoinRequests,
+  type GroupPerms,
+  type ManageTool,
+} from "./GroupManage";
 import { MembershipButton } from "./GroupMembership";
 import { RefreshButton } from "./RefreshButton";
 import { ImageViewer, type ViewerImage } from "./ImageViewer";
 import { fullSizeUrl } from "@/lib/image";
 import { actions, InstanceBadge, UserAvatar } from "./people";
-import { Button, Dialog, Empty, Img, Input, Segmented, Skeleton } from "./ui";
+import { Button, Dialog, Empty, IconButton, Img, Input, Segmented, Skeleton } from "./ui";
 import { KV, Panel, Pill } from "./UserDialog";
 
 type Tab = "about" | "posts" | "instances" | "members" | "json";
@@ -55,9 +71,13 @@ function useLeave() {
   };
 }
 
+type Tool = Exclude<ManageTool, "requests" | "bans">;
+
 function GroupBody({ groupId }: { groupId: string }) {
   const q = useQuery({ queryKey: ["group", groupId], queryFn: () => ipc.group(groupId), staleTime: 5 * 60_000 });
   const [tab, setTab] = useState<Tab>("about");
+  const [tool, setTool] = useState<Tool | null>(null);
+  const [memberView, setMemberView] = useState<MemberView>("members");
 
   if (q.isLoading) {
     return (
@@ -74,18 +94,51 @@ function GroupBody({ groupId }: { groupId: string }) {
   }
   const g = q.data;
   if (!g) return <Empty icon={<Users />} title="Couldn't load this group" hint={errorText(q.error)} />;
+  return <Loaded g={g} tab={tab} setTab={setTab} tool={tool} setTool={setTool} memberView={memberView} setMemberView={setMemberView} />;
+}
 
-  const tabs: { id: Tab; label: string }[] = [
+function Loaded({
+  g,
+  tab,
+  setTab,
+  tool,
+  setTool,
+  memberView,
+  setMemberView,
+}: {
+  g: VrcGroupDetail;
+  tab: Tab;
+  setTab: (t: Tab) => void;
+  tool: Tool | null;
+  setTool: (t: Tool | null) => void;
+  memberView: MemberView;
+  setMemberView: (v: MemberView) => void;
+}) {
+  const perms = useGroupPerms(g);
+  const requests = useJoinRequests(g.id, perms.requests).data?.length ?? 0;
+  const openTool = (t: ManageTool) => {
+    if (t === "bans" || t === "requests") {
+      setMemberView(t === "bans" ? "banned" : "requests");
+      setTab("members");
+    } else {
+      // Show the tab the result lands in, so a new post or instance appears behind the dialog.
+      if (t === "post") setTab("posts");
+      if (t === "instance") setTab("instances");
+      setTool(t);
+    }
+  };
+
+  const tabs: { id: Tab; label: string; badge?: number }[] = [
     { id: "about", label: "About" },
     { id: "posts", label: "Posts" },
     { id: "instances", label: "Instances" },
-    { id: "members", label: "Members" },
+    { id: "members", label: "Members", badge: requests },
     { id: "json", label: "JSON" },
   ];
 
   return (
     <div className="flex h-[86vh]">
-      <Identity g={g} />
+      <Identity g={g} perms={perms} requests={requests} onTool={openTool} />
       <section className="flex min-w-0 flex-1 flex-col">
         <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-line px-4 pr-14 pt-3">
           {tabs.map((t) => (
@@ -98,6 +151,11 @@ function GroupBody({ groupId }: { groupId: string }) {
               )}
             >
               {t.label}
+              {!!t.badge && (
+                <span title={`${t.badge} join requests`} className="ml-1.5 rounded-full bg-accent px-1.5 py-px text-[10px] font-bold text-accent-fg">
+                  {t.badge}
+                </span>
+              )}
               {tab === t.id && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-accent" />}
             </button>
           ))}
@@ -105,9 +163,9 @@ function GroupBody({ groupId }: { groupId: string }) {
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
           <ErrorBoundary resetKey={tab}>
             {tab === "about" && <About g={g} />}
-            {tab === "posts" && <Posts groupId={g.id} />}
-            {tab === "instances" && <Instances groupId={g.id} />}
-            {tab === "members" && <Members g={g} />}
+            {tab === "posts" && <Posts groupId={g.id} perms={perms} onNew={() => setTool("post")} />}
+            {tab === "instances" && <Instances groupId={g.id} perms={perms} onNew={() => setTool("instance")} />}
+            {tab === "members" && <Members g={g} perms={perms} requests={requests} view={memberView} setView={setMemberView} />}
             {tab === "json" && (
               <pre className="selectable overflow-auto rounded-xl bg-panel-2 p-4 text-[11.5px] leading-relaxed text-muted">
                 {JSON.stringify(g, null, 2)}
@@ -116,6 +174,9 @@ function GroupBody({ groupId }: { groupId: string }) {
           </ErrorBoundary>
         </div>
       </section>
+      {perms.editGroup && <EditGroupDialog g={g} open={tool === "edit"} onClose={() => setTool(null)} />}
+      {perms.posts && <NewPostDialog g={g} open={tool === "post"} onClose={() => setTool(null)} />}
+      {perms.createInstance && <NewInstanceDialog g={g} perms={perms} open={tool === "instance"} onClose={() => setTool(null)} />}
     </div>
   );
 }
@@ -131,7 +192,7 @@ function Owner({ userId }: { userId: string }) {
   );
 }
 
-function Identity({ g }: { g: VrcGroupDetail }) {
+function Identity({ g, perms, requests, onTool }: { g: VrcGroupDetail; perms: GroupPerms; requests: number; onTool: (t: ManageTool) => void }) {
   const member = g.membershipStatus === "member";
   const [viewing, setViewing] = useState<number | null>(null);
   const safe = g.name.replace(/[^\p{L}\p{N}_-]+/gu, "_");
@@ -181,6 +242,11 @@ function Identity({ g }: { g: VrcGroupDetail }) {
         </div>
 
         <div className="mt-3 flex flex-wrap gap-1.5">
+          {perms.isOwner && (
+            <Pill className="border-amber-400/30 text-amber-400">
+              <Crown className="size-3" /> Owner
+            </Pill>
+          )}
           {member && <Pill className="text-st-active">Member</Pill>}
           {g.membershipStatus === "requested" && <Pill className="text-st-ask">Requested</Pill>}
           {g.membershipStatus === "invited" && <Pill className="text-st-join">Invited</Pill>}
@@ -194,9 +260,11 @@ function Identity({ g }: { g: VrcGroupDetail }) {
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-1.5 [&>*]:w-full">
-          <MembershipButton group={g} />
+          {/* VRChat doesn't let the owner leave; ownership has to be transferred on vrchat.com first. */}
+          {!perms.isOwner && <MembershipButton group={g} />}
           <Button
             size="sm"
+            className={perms.isOwner ? "col-span-2" : undefined}
             icon={<Copy className="size-3.5" />}
             onClick={() => navigator.clipboard.writeText(`${g.shortCode}.${g.discriminator}`).then(() => toast.success("Copied group code"))}
           >
@@ -215,6 +283,7 @@ function Identity({ g }: { g: VrcGroupDetail }) {
       </div>
 
       <div className="space-y-3 p-4">
+        {perms.any && <ManagePanel perms={perms} requests={requests} onTool={onTool} />}
         <Panel title="Info">
           <KV k="Members">{g.memberCount?.toLocaleString() ?? "—"}</KV>
           {g.onlineMemberCount != null && (
@@ -299,30 +368,44 @@ function About({ g }: { g: VrcGroupDetail }) {
   );
 }
 
-function Posts({ groupId }: { groupId: string }) {
+function Posts({ groupId, perms, onNew }: { groupId: string; perms: GroupPerms; onNew: () => void }) {
   const q = useQuery({ queryKey: ["group-posts", groupId], queryFn: () => ipc.groupPosts(groupId), staleTime: 5 * 60_000 });
   const [viewing, setViewing] = useState<number | null>(null);
+  const newButton = perms.posts && (
+    <Button size="sm" variant="primary" icon={<Plus className="size-3.5" />} onClick={onNew}>
+      New post
+    </Button>
+  );
   if (q.isLoading) return <Skeleton className="h-40 rounded-xl" />;
   if (q.error) return <Empty icon={<Megaphone />} title="Posts aren't visible" hint={errorText(q.error)} />;
   const posts = q.data?.posts ?? [];
-  if (!posts.length) return <Empty icon={<Megaphone />} title="No posts yet" />;
+  if (!posts.length) return <Empty icon={<Megaphone />} title="No posts yet">{newButton}</Empty>;
   const withImages = posts.filter((p) => p.imageUrl);
   const images: ViewerImage[] = withImages.map((p) => ({ src: fullSizeUrl(p.imageUrl)!, title: p.title || "Post image", subtitle: ago(p.createdAt), fileName: `post_${p.id}` }));
   return (
     <div className="space-y-3">
       <ImageViewer images={images} index={viewing} onIndex={setViewing} onClose={() => setViewing(null)} />
+      {newButton && <div className="flex justify-end">{newButton}</div>}
       {posts.map((p) => (
         <Panel key={p.id}>
           <div className="flex gap-4">
             <div className="min-w-0 flex-1">
               <div className="font-semibold">{p.title}</div>
-              <div className="text-xs text-subtle">{ago(p.createdAt)}</div>
+              <div className="text-xs text-subtle">
+                {ago(p.createdAt)}
+                {perms.posts && p.visibility && <> · {p.visibility === "public" ? "Everyone" : p.roleIds?.length ? "Some roles" : "Members"}</>}
+              </div>
               {p.text && <p className="selectable mt-2 whitespace-pre-wrap [overflow-wrap:anywhere] text-[13px] leading-relaxed text-muted">{p.text}</p>}
             </div>
             {p.imageUrl && (
               <button onClick={() => setViewing(withImages.indexOf(p))} className="shrink-0 cursor-zoom-in" title="View image">
                 <Img src={p.imageUrl} className="h-24 w-36 rounded-lg" />
               </button>
+            )}
+            {perms.posts && (
+              <div className="-mr-1.5 -mt-1.5 shrink-0">
+                <DeletePostButton groupId={groupId} postId={p.id} title={p.title} />
+              </div>
             )}
           </div>
         </Panel>
@@ -331,15 +414,26 @@ function Posts({ groupId }: { groupId: string }) {
   );
 }
 
-function Instances({ groupId }: { groupId: string }) {
+function Instances({ groupId, perms, onNew }: { groupId: string; perms: GroupPerms; onNew: () => void }) {
   const { toWorld } = useLeave();
   const byId = useFriends((s) => s.byId);
   const q = useQuery({ queryKey: ["group-instances", groupId], queryFn: () => ipc.groupInstances(groupId), staleTime: 30_000 });
+  const newButton = perms.createInstance && (
+    <Button size="sm" variant="primary" icon={<Plus className="size-3.5" />} onClick={onNew}>
+      New instance
+    </Button>
+  );
   if (q.isLoading) return <Skeleton className="h-40 rounded-xl" />;
   if (q.error) return <Empty icon={<Globe />} title="Instances aren't visible" hint={errorText(q.error)} />;
-  if (!q.data?.length) return <Empty icon={<Globe />} title="No open group instances" hint="Only instances you're allowed to see are listed." />;
+  if (!q.data?.length)
+    return (
+      <Empty icon={<Globe />} title="No open group instances" hint="Only instances you're allowed to see are listed.">
+        {newButton}
+      </Empty>
+    );
   return (
     <div className="space-y-2">
+      {newButton && <div className="flex justify-end pb-1">{newButton}</div>}
       {q.data.map((i) => {
         const friendsHere = Object.values(byId).filter((f) => f.location?.split("~")[0] === i.location.split("~")[0]);
         return (
@@ -362,6 +456,7 @@ function Instances({ groupId }: { groupId: string }) {
                 {friendsHere.length > 0 && <span className="text-accent">{friendsHere.length} friends here</span>}
               </div>
             </div>
+            {perms.closeInstance && <CloseInstanceButton groupId={groupId} location={i.location} worldName={i.world?.name} />}
             <Button size="sm" icon={<Send className="size-3.5" />} onClick={() => actions.selfInvite(i.location)}>
               Invite me
             </Button>
@@ -376,6 +471,7 @@ function Instances({ groupId }: { groupId: string }) {
 }
 
 type MemberSort = "alpha" | "role" | "online";
+type MemberView = "members" | "requests" | "banned";
 
 const PAGE = 100;
 const LOAD_ALL_CAP = 2000;
@@ -387,9 +483,22 @@ function canViewMembers(g: VrcGroupDetail): "yes" | "no" | "unknown" {
   return perms?.includes("*") || perms?.includes("group-members-viewall") ? "yes" : "no";
 }
 
-function Members({ g }: { g: VrcGroupDetail }) {
+function Members({
+  g,
+  perms,
+  requests,
+  view,
+  setView,
+}: {
+  g: VrcGroupDetail;
+  perms: GroupPerms;
+  requests: number;
+  view: MemberView;
+  setView: (v: MemberView) => void;
+}) {
   const byId = useFriends((s) => s.byId);
   const { toUser } = useLeave();
+  const [managing, setManaging] = useState<VrcGroupMember | null>(null);
   const [sort, setSort] = useState<MemberSort>("role");
   const [q, setQ] = useState("");
   const [loadingAll, setLoadingAll] = useState(false);
@@ -420,6 +529,30 @@ function Members({ g }: { g: VrcGroupDetail }) {
     retry: false,
   });
 
+  const views: { value: MemberView; label: ReactNode }[] = [{ value: "members", label: "Members" }];
+  if (perms.requests)
+    views.push({
+      value: "requests",
+      label: (
+        <span className="inline-flex items-center gap-1">
+          <UserPlus className="size-3" /> Requests
+          {requests > 0 && <span className="rounded-full bg-accent px-1.5 text-[10px] font-bold text-accent-fg">{requests}</span>}
+        </span>
+      ),
+    });
+  if (perms.ban)
+    views.push({
+      value: "banned",
+      label: (
+        <span className="inline-flex items-center gap-1">
+          <Ban className="size-3" /> Banned
+        </span>
+      ),
+    });
+  const viewToggle = views.length > 1 && <Segmented<MemberView> value={view} onChange={setView} options={views} />;
+  if (view === "requests" && perms.requests) return <RequestsList g={g} toolbar={viewToggle} onOpenProfile={toUser} />;
+  if (view === "banned" && perms.ban) return <BansList g={g} toolbar={viewToggle} onOpenProfile={toUser} />;
+
   if (access === "no") {
     return (
       <Empty
@@ -437,8 +570,7 @@ function Members({ g }: { g: VrcGroupDetail }) {
   const loaded = list.data?.pages.flat() ?? [];
   const source = term.length >= 3 && searchTerm === term && search.data ? search.data : loaded.filter((m) => !term || m.user.displayName.toLowerCase().includes(term.toLowerCase()));
 
-  const rank = (roleIds?: string[]) =>
-    Math.min(...(roleIds ?? []).map((id) => roles.get(id)?.order ?? 999), 999);
+  const rank = (roleIds: string[]) => Math.min(...roleIds.map((id) => roles.get(id)?.order ?? 999), 999);
   const presence = (id: string) => {
     const f = byId[id];
     return !f ? 3 : f.state === "online" ? 0 : f.state === "active" ? 1 : 2;
@@ -448,7 +580,7 @@ function Members({ g }: { g: VrcGroupDetail }) {
   const members = [...source].sort((a, b) => {
     if (sort === "role")
       return (
-        Number(b.user.id === g.ownerId) - Number(a.user.id === g.ownerId) || rank(a.roleIds) - rank(b.roleIds) || byName(a, b)
+        Number(b.user.id === g.ownerId) - Number(a.user.id === g.ownerId) || rank(memberRoleIds(a)) - rank(memberRoleIds(b)) || byName(a, b)
       );
     if (sort === "online") return presence(a.user.id) - presence(b.user.id) || byName(a, b);
     return byName(a, b);
@@ -471,6 +603,7 @@ function Members({ g }: { g: VrcGroupDetail }) {
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-2">
+        {viewToggle}
         <Input icon={<Search className="size-4" />} placeholder="Search members" value={q} onChange={(e) => setQ(e.target.value)} className="w-56" />
         <Segmented<MemberSort>
           value={sort}
@@ -494,30 +627,40 @@ function Members({ g }: { g: VrcGroupDetail }) {
       <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
         {members.map((m) => {
           const friend = byId[m.user.id];
-          const roleNames = (m.roleIds ?? []).map((r) => roles.get(r)?.name).filter(Boolean);
+          const roleNames = memberRoleIds(m)
+            .map((r) => roles.get(r)?.name)
+            .filter(Boolean);
           const isOwner = m.user.id === g.ownerId;
           return (
-            <button
+            <div
               key={m.id}
-              onClick={() => toUser(m.user.id)}
-              className={cn(
-                "flex items-center gap-3 rounded-xl border bg-panel p-2.5 text-left hover:border-accent/40 cursor-pointer",
-                friend ? "border-accent/30" : "border-line",
-              )}
+              className={cn("group/m flex items-center rounded-xl border bg-panel transition-colors hover:border-accent/40", friend ? "border-accent/30" : "border-line")}
             >
-              <UserAvatar user={friend ?? { ...m.user, iconUrl: m.user.iconUrl ?? m.user.thumbnailUrl }} size={34} dot={!!friend} />
-              <div className="min-w-0">
-                <div className="flex items-center gap-1 truncate text-[13px] font-medium">
-                  {isOwner && <Crown className="size-3 shrink-0 text-amber-400" />}
-                  <span className="truncate">{m.user.displayName}</span>
+              <button onClick={() => toUser(m.user.id)} className="flex min-w-0 flex-1 items-center gap-3 p-2.5 text-left cursor-pointer">
+                <UserAvatar user={friend ?? { ...m.user, iconUrl: m.user.iconUrl ?? m.user.thumbnailUrl }} size={34} dot={!!friend} />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1 truncate text-[13px] font-medium">
+                    {isOwner && <Crown className="size-3 shrink-0 text-amber-400" />}
+                    <span className="truncate">{m.user.displayName}</span>
+                  </div>
+                  {roleNames.length > 0 && <div className="truncate text-[11px] text-subtle">{roleNames.join(", ")}</div>}
                 </div>
-                {roleNames.length > 0 && <div className="truncate text-[11px] text-subtle">{roleNames.join(", ")}</div>}
-              </div>
-            </button>
+              </button>
+              {perms.members && (
+                <IconButton
+                  label="Roles, permissions & moderation"
+                  onClick={() => setManaging(m)}
+                  className="mr-1.5 shrink-0 opacity-50 group-hover/m:opacity-100 focus-visible:opacity-100"
+                >
+                  <UserCog className="size-4" />
+                </IconButton>
+              )}
+            </div>
           );
         })}
       </div>
       {!members.length && <Empty icon={<Search />} title="No members match" />}
+      {perms.members && <MemberDialog g={g} member={managing} onClose={() => setManaging(null)} onOpenProfile={toUser} />}
       {list.hasNextPage && !(term.length >= 3) && (
         <div className="mt-4 flex justify-center gap-2">
           <Button onClick={() => list.fetchNextPage()} loading={list.isFetchingNextPage && !loadingAll}>

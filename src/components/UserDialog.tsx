@@ -6,6 +6,7 @@ import {
   Clock,
   Coins,
   Copy,
+  Crown,
   ExternalLink,
   Gamepad2,
   Gem,
@@ -34,7 +35,7 @@ import { errorText, ipc } from "@/lib/ipc";
 import { parseLocation, sameInstance } from "@/lib/location";
 import { useAvatar, useInstance, useUser, useWorld } from "@/lib/queries";
 import { useNow } from "@/lib/useNow";
-import type { CurrentUser, UserHistory, VrcBadge, VrcGroup, VrcProfile, VrcUser, World } from "@/lib/types";
+import type { CurrentUser, ModerationKind, UserHistory, VrcBadge, VrcGroup, VrcProfile, VrcUser, World } from "@/lib/types";
 import { useAuth } from "@/stores/auth";
 import { useFriends } from "@/stores/friends";
 import { useLive } from "@/stores/live";
@@ -45,6 +46,7 @@ import { ErrorBoundary } from "./ErrorBoundary";
 import { FavoriteButton } from "./AvatarFavoriteButton";
 import { BoopButton } from "./BoopButton";
 import { RefreshButton } from "./RefreshButton";
+import { MODERATIONS, SafetyMenu, useModerations } from "./SafetyMenu";
 import { ImageViewer, type ViewerImage } from "./ImageViewer";
 import { fullSizeUrl } from "@/lib/image";
 import { FeedRow } from "./FeedRow";
@@ -279,6 +281,7 @@ function Profile({ userId }: { userId: string }) {
   const profile = useQuery({ queryKey: ["profile", userId], queryFn: () => ipc.profile(userId), staleTime: 5 * 60_000 });
   const history = useQuery({ queryKey: ["history", userId], queryFn: () => ipc.userHistory(userId) });
   // Some links open a profile straight on a tab, e.g. a world's creator on their Worlds.
+  const [groupsShow, setGroupsShow] = useState<"all" | "owned">("all");
   const [tab, setTab] = useState<Tab>(() => {
     const wanted = useUi.getState().userTab;
     return wanted && TABS.includes(wanted as Tab) ? (wanted as Tab) : "info";
@@ -361,8 +364,20 @@ function Profile({ userId }: { userId: string }) {
         </div>
         <div className="px-6 pb-6 pt-5">
           <ErrorBoundary resetKey={tab}>
-            {tab === "info" && <InfoTab u={u} p={p} isMe={isMe} me={meData} profileLoading={profile.isLoading} />}
-            {tab === "groups" && <GroupsTab userId={userId} />}
+            {tab === "info" && (
+              <InfoTab
+                u={u}
+                p={p}
+                isMe={isMe}
+                me={meData}
+                profileLoading={profile.isLoading}
+                onOwnedGroups={() => {
+                  setGroupsShow("owned");
+                  setTab("groups");
+                }}
+              />
+            )}
+            {tab === "groups" && <GroupsTab userId={userId} show={groupsShow} />}
             {tab === "mutuals" && <MutualsTab userId={userId} />}
             {tab === "worlds" && <WorldsTab userId={userId} />}
             {tab === "favworlds" && <FavWorldsTab />}
@@ -382,6 +397,7 @@ function Profile({ userId }: { userId: string }) {
 function Hero({ u, p, isMe, me }: { u: VrcUser; p?: VrcProfile; isMe: boolean; me?: CurrentUser }) {
   const isFriend = useFriends((s) => !!s.byId[u.id]);
   const fav = useFriends((s) => s.favorites.has(u.id));
+  const moderations = useModerations(u.id, !isMe);
   const setEditingProfile = useUi((s) => s.setEditingProfile);
   const now = useNow(30_000);
   const online = u.state === "online";
@@ -488,6 +504,13 @@ function Hero({ u, p, isMe, me }: { u: VrcUser; p?: VrcProfile; isMe: boolean; m
             <Globe className="size-3" /> {LANGUAGES[l] ?? l.toUpperCase()}
           </Pill>
         ))}
+        {(Object.keys(MODERATIONS) as ModerationKind[])
+          .filter((k) => moderations.has(k))
+          .map((k) => (
+            <Pill key={k} className={k === "block" ? "border-red-500/30 text-red-400" : "border-amber-400/30 text-amber-400"}>
+              {MODERATIONS[k].icon} {MODERATIONS[k].active}
+            </Pill>
+          ))}
         {badges.length > 0 && <span className="mx-1 h-4 w-px bg-line" />}
         {badges.map((b: VrcBadge) => (
           <Tip key={b.badgeId} label={b.badgeDescription || b.badgeName || "Badge"}>
@@ -535,6 +558,7 @@ function Hero({ u, p, isMe, me }: { u: VrcUser; p?: VrcProfile; isMe: boolean; m
             Edit profile
           </Button>
         )}
+        {!isMe && <SafetyMenu user={u} isFriend={isFriend} />}
       </div>
 
       <ImageViewer images={viewerImages} index={viewing} onIndex={setViewing} onClose={() => setViewing(null)} />
@@ -771,6 +795,49 @@ function GroupCard({ g, title }: { g: VrcGroup; title?: string }) {
   return <LinkCard title={title} onClick={() => openGroup(g.groupId ?? g.id ?? null)} img={g.bannerUrl || g.iconUrl} icon={g.iconUrl} name={g.name} sub={sub} />;
 }
 
+const OWNED_SHOWN = 4;
+
+/** Groups this person owns, from their public group list (VRChat has no other way to find them). */
+function OwnedGroups({ userId, isMe, onSeeAll }: { userId: string; isMe: boolean; onSeeAll: () => void }) {
+  const openGroup = useUi((s) => s.openGroup);
+  const list = useQuery({ queryKey: ["groups", userId], queryFn: () => ipc.userGroups(userId), staleTime: 10 * 60_000 });
+  const owned = (list.data ?? []).filter((g) => g.ownerId === userId).sort((a, b) => (b.memberCount ?? 0) - (a.memberCount ?? 0));
+  if (!owned.length) return null;
+  return (
+    <Section
+      title={isMe ? `Your groups · ${owned.length}` : `Owned groups · ${owned.length}`}
+      action={
+        owned.length > OWNED_SHOWN && (
+          <button onClick={onSeeAll} className="text-xs font-medium text-accent hover:underline cursor-pointer">
+            See all
+          </button>
+        )
+      }
+    >
+      <div className="-mx-1.5 space-y-0.5">
+        {owned.slice(0, OWNED_SHOWN).map((g) => (
+          <button
+            key={g.groupId ?? g.id}
+            onClick={() => openGroup(g.groupId ?? g.id ?? null)}
+            className="flex w-full items-center gap-2.5 rounded-lg px-1.5 py-1.5 text-left hover:bg-hover cursor-pointer"
+          >
+            <Img src={g.iconUrl} className="size-9 shrink-0 rounded-lg" />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1 truncate text-[13px] font-semibold">
+                <Crown className="size-3 shrink-0 text-amber-400" />
+                <span className="truncate">{g.name}</span>
+              </div>
+              <div className="truncate text-xs text-muted">
+                {[g.shortCode && `${g.shortCode}.${g.discriminator}`, g.memberCount != null && `${g.memberCount.toLocaleString()} members`].filter(Boolean).join(" · ")}
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
 /** A clickable media card: image strip on top, name and a subtitle below. */
 function LinkCard({ title, onClick, img, icon, name, sub }: { title?: string; onClick: () => void; img?: string | null; icon?: string | null; name?: string; sub?: string | false }) {
   return (
@@ -794,7 +861,21 @@ function LinkCard({ title, onClick, img, icon, name, sub }: { title?: string; on
   );
 }
 
-function InfoTab({ u, p, isMe, me, profileLoading }: { u: VrcUser; p?: VrcProfile; isMe: boolean; me?: CurrentUser; profileLoading: boolean }) {
+function InfoTab({
+  u,
+  p,
+  isMe,
+  me,
+  profileLoading,
+  onOwnedGroups,
+}: {
+  u: VrcUser;
+  p?: VrcProfile;
+  isMe: boolean;
+  me?: CurrentUser;
+  profileLoading: boolean;
+  onOwnedGroups: () => void;
+}) {
   const now = useNow(30_000);
   const myLocation = isMe ? (me?.$location ?? u.location) : u.location;
   const lastSeen = u.last_activity || u.last_login;
@@ -875,6 +956,7 @@ function InfoTab({ u, p, isMe, me, profileLoading }: { u: VrcUser; p?: VrcProfil
         {isMe && me?.currentAvatar && <CurrentAvatar avatarId={me.currentAvatar} thumb={me.currentAvatarThumbnailImageUrl} />}
         {isMe && me?.homeLocation && <HomeWorld location={me.homeLocation} />}
         {p?.representedGroup && <GroupCard g={p.representedGroup} title="Representing" />}
+        <OwnedGroups userId={u.id} isMe={isMe} onSeeAll={onOwnedGroups} />
 
         {isMe && !!me?.pastDisplayNames?.length && (
           <Section title="Past names">
@@ -908,18 +990,34 @@ function Loading() {
 
 type GroupSort = "alpha" | "members" | "online";
 
-function GroupsTab({ userId }: { userId: string }) {
+function GroupsTab({ userId, show }: { userId: string; show: "all" | "owned" }) {
   const list = useQuery({ queryKey: ["groups", userId], queryFn: () => ipc.userGroups(userId), staleTime: 10 * 60_000 });
   if (list.isLoading) return <Loading />;
   if (list.error) return <Empty icon={<Users />} title="Couldn't load groups" hint={errorText(list.error)} />;
   if (!list.data?.length) return <Empty icon={<Users />} title="No visible groups" />;
-  return <SortableGroups groups={list.data} />;
+  return <SortableGroups groups={list.data} ownerId={userId} initialShow={show} />;
 }
 
-/** Search + A–Z / most members / most online over a list of groups. `actions` sits at the end of the filter row. */
-export function SortableGroups({ groups: all, actions }: { groups: VrcGroup[]; actions?: ReactNode }) {
+/**
+ * Search + A–Z / most members / most online over a list of groups. `actions` sits at the end of the filter row.
+ * With `ownerId` (whose groups these are), the groups they own get a badge and an "Owned" filter.
+ */
+export function SortableGroups({
+  groups: all,
+  actions,
+  ownerId,
+  initialShow = "all",
+}: {
+  groups: VrcGroup[];
+  actions?: ReactNode;
+  ownerId?: string;
+  initialShow?: "all" | "owned";
+}) {
   const [sort, setSort] = useState<GroupSort>("alpha");
+  const [show, setShow] = useState<"all" | "owned">(initialShow);
   const [q, setQ] = useState("");
+  const owned = ownerId ? all.filter((g) => g.ownerId === ownerId).length : 0;
+  const meId = useAuth((s) => s.user?.id);
   const ids = all.map((g) => g.groupId ?? g.id ?? "").filter(Boolean);
   // The group list has no online counts; fetch details only once someone asks for that sort,
   // in the background lane so a long list can't hold up anything else you open meanwhile.
@@ -938,6 +1036,7 @@ export function SortableGroups({ groups: all, actions }: { groups: VrcGroup[]; a
 
   const s = q.trim().toLowerCase();
   const groups = all
+    .filter((g) => show === "all" || g.ownerId === ownerId)
     .filter((g) => !s || g.name.toLowerCase().includes(s) || (g.shortCode ?? "").toLowerCase().includes(s))
     .sort((a, b) => {
       if (sort === "members") return (b.memberCount ?? 0) - (a.memberCount ?? 0);
@@ -949,6 +1048,23 @@ export function SortableGroups({ groups: all, actions }: { groups: VrcGroup[]; a
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Input icon={<Search className="size-4" />} placeholder={`Search ${all.length} groups`} value={q} onChange={(e) => setQ(e.target.value)} className="w-60" />
+        {ownerId && (
+          <Segmented
+            value={show}
+            onChange={setShow}
+            options={[
+              { value: "all", label: `All · ${all.length}` },
+              {
+                value: "owned",
+                label: (
+                  <span className="inline-flex items-center gap-1">
+                    <Crown className="size-3 text-amber-400" /> Owned · {owned}
+                  </span>
+                ),
+              },
+            ]}
+          />
+        )}
         <Segmented<GroupSort>
           value={sort}
           onChange={setSort}
@@ -966,7 +1082,9 @@ export function SortableGroups({ groups: all, actions }: { groups: VrcGroup[]; a
         {actions && <div className="ml-auto">{actions}</div>}
       </div>
       {groups.length ? (
-        <GroupGrid groups={groups} online={sort === "online" ? online : undefined} />
+        <GroupGrid groups={groups} online={sort === "online" ? online : undefined} ownerId={ownerId} />
+      ) : show === "owned" && !owned ? (
+        <Empty icon={<Crown />} title="No owned groups" hint={ownerId === meId ? "Groups you create show up here." : "None of their visible groups are theirs."} />
       ) : (
         <Empty icon={<Search />} title="No groups match" />
       )}
@@ -974,7 +1092,7 @@ export function SortableGroups({ groups: all, actions }: { groups: VrcGroup[]; a
   );
 }
 
-function GroupGrid({ groups, online }: { groups: VrcGroup[]; online?: Record<string, number | undefined> }) {
+function GroupGrid({ groups, online, ownerId }: { groups: VrcGroup[]; online?: Record<string, number | undefined>; ownerId?: string }) {
   const openGroup = useUi((s) => s.openGroup);
   return (
     <div className="grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(250px,1fr))]">
@@ -997,7 +1115,12 @@ function GroupGrid({ groups, online }: { groups: VrcGroup[]; online?: Record<str
               )}
             </div>
             <div className="mt-1 flex gap-1">
-              {g.isRepresenting && <span className="rounded bg-accent-soft px-1.5 text-[10px] font-semibold text-accent">Representing</span>}
+              {ownerId && g.ownerId === ownerId && (
+                <span className="inline-flex items-center gap-0.5 rounded bg-amber-400/12 px-1.5 text-[10px] font-semibold text-amber-400">
+                  <Crown className="size-2.5" /> Owner
+                </span>
+              )}
+              {g.isRepresenting &&<span className="rounded bg-accent-soft px-1.5 text-[10px] font-semibold text-accent">Representing</span>}
               {g.mutualGroup && <span className="rounded bg-emerald-500/12 px-1.5 text-[10px] font-semibold text-emerald-400">Mutual</span>}
             </div>
           </div>

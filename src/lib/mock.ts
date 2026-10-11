@@ -126,6 +126,38 @@ const sessions: GlSession[] = Array.from({ length: 12 }, (_, i) => ({
 }));
 
 let mockWatched: string[] = ["usr_2"];
+// Your moderations: Pixel's voice is muted.
+let mockModerations: { id: string; type: string; targetUserId: string }[] = [{ id: "pmod_1", type: "mute", targetUserId: "usr_2" }];
+// Groups you own (grp_0, grp_2), with roles, posts, bans and instances that change as you manage them.
+const OWNED_GROUPS = ["grp_0", "grp_2"];
+const mockRoles = [
+  { id: "r1", name: "Owner", order: 0, permissions: ["*"], isManagementRole: true },
+  { id: "r2", name: "Moderator", order: 1, permissions: ["group-members-remove", "group-bans-manage", "group-announcement-manage", "group-instance-manage", "group-members-viewall"], isManagementRole: true },
+  { id: "r3", name: "Member", order: 2, permissions: ["group-instance-join"] },
+];
+const mockPermissions = [
+  ["group-announcement-manage", "Manage Group Posts", "Create and delete group posts", true],
+  ["group-bans-manage", "Manage Group Bans", "Ban and unban people from the group", true],
+  ["group-members-remove", "Remove Group Members", "Kick members out of the group", true],
+  ["group-members-viewall", "View All Members", "See the full member list", false],
+  ["group-instance-manage", "Manage Group Instances", "Close group instances", true],
+  ["group-instance-join", "Join Group Instances", "Join instances owned by the group", false],
+].map(([name, displayName, help, isManagementPermission]) => ({ name, displayName, help, isManagementPermission }));
+const mockGroupPatch: Record<string, object> = {};
+const mockMemberRoles: Record<string, string[]> = {};
+let mockKicked: string[] = [];
+let mockBans: { id: string; bannedAt: string; user: { id: string; displayName: string; iconUrl?: string } }[] = [
+  { id: "gb_0", bannedAt: new Date(now - 5 * 86400000).toISOString(), user: { id: "usr_s9", displayName: "Grifter", iconUrl: img("grifter", 64, 64) } },
+];
+let mockRequests = ["Starling", "Moss", "Tidewalker"].map((name, i) => ({
+  id: `gmr_${i}`,
+  createdAt: new Date(now - (i + 1) * 3 * 3600000).toISOString(),
+  user: { id: `usr_r${i}`, displayName: name, iconUrl: img(`req${i}`, 64, 64) },
+}));
+let mockPosts = [
+  { id: "gpst_1", title: "Movie night Friday!", text: "Join us in Movie & Chill at 9pm.", createdAt: new Date(now - 86400000).toISOString(), imageUrl: img("post", 300, 200), visibility: "group" },
+];
+let mockGroupInstances = [{ instanceId: "4242~group(grp_1)~groupAccessType(public)", location: `${W(3)}:4242~group(grp_1)~groupAccessType(public)`, memberCount: 12, world: worlds[3] }];
 const mockRefreshed = new Map<string, number>();
 // "Spooky" (avatars3) is full, to exercise the per-list cap.
 let mockAvatarFavs: { id: string; favoriteId: string; tags: string[]; type?: string }[] = [
@@ -298,19 +330,95 @@ export function installMock() {
           };
         }
         case "user_groups":
-          return [0, 1, 2, 3].map((i) => ({ groupId: `grp_${i}`, name: ["Verified Goth", "Night Owls", "Movie Club", "Builders"][i], memberCount: 100 * (i + 1), iconUrl: img("g" + i, 64, 64), isRepresenting: i === 0, mutualGroup: i % 2 === 1 }));
+          return [0, 1, 2, 3].map((i) => ({
+            groupId: `grp_${i}`, name: ["Verified Goth", "Night Owls", "Movie Club", "Builders"][i], memberCount: 100 * (i + 1), iconUrl: img("g" + i, 64, 64), isRepresenting: i === 0, mutualGroup: i % 2 === 1,
+            // You own grp_0 and grp_2; anyone else owns their grp_1.
+            ownerId: a.userId === "usr_me" ? (OWNED_GROUPS.includes(`grp_${i}`) ? "usr_me" : "usr_5") : i === 1 ? a.userId : "usr_5",
+          }));
         case "user_mutuals":
           return { counts: { friends: 3, groups: 2 }, friends: friends.slice(0, 3) };
         case "user_worlds":
           return worlds.slice(0, 3);
-        case "group_get":
+        case "group_get": {
+          const owned = OWNED_GROUPS.includes(String(a.groupId));
           return {
             id: a.groupId, name: "Verified Goth", shortCode: "GOTH", discriminator: "0001", isVerified: true,
-            description: "A cozy community for late-night hangouts.", rules: "Be kind. 18+ only.", links: ["https://discord.gg/example"],
-            memberCount: 1270, onlineMemberCount: 104, ownerId: "usr_0", joinState: "open", membershipStatus: "member", myMember: { permissions: ["group-members-viewall"] },
+            description: "A cozy community for late-night hangouts.", rules: "Be kind. 18+ only.", links: ["https://discord.gg/example"], languages: ["eng"],
+            memberCount: 1270, onlineMemberCount: 104, ownerId: owned ? "usr_me" : "usr_0", joinState: "open", membershipStatus: "member",
+            myMember: { permissions: owned ? ["*"] : ["group-members-viewall"] },
             createdAt: "2024-02-04T18:23:56.673Z", iconUrl: img("grp", 128, 128), bannerUrl: img("grpb", 900, 300),
-            roles: [{ id: "r1", name: "Owner", order: 0 }, { id: "r2", name: "Moderator", order: 1 }, { id: "r3", name: "Member", order: 2 }],
+            roles: mockRoles.map(({ id, name, order }) => ({ id, name, order })),
+            ...mockGroupPatch[String(a.groupId)],
           };
+        }
+        case "group_update":
+          mockGroupPatch[String(a.groupId)] = { ...mockGroupPatch[String(a.groupId)], ...(a.patch as object) };
+          return { id: a.groupId, ...mockGroupPatch[String(a.groupId)] };
+        case "group_post_create":
+          mockPosts = [{ id: `gpst_${Date.now()}`, title: String(a.title), text: String(a.text), createdAt: new Date().toISOString(), imageUrl: null as unknown as string, visibility: String(a.visibility) }, ...mockPosts];
+          return mockPosts[0];
+        case "group_post_delete":
+          mockPosts = mockPosts.filter((p) => p.id !== a.postId);
+          return null;
+        case "group_roles":
+          return mockRoles;
+        case "group_permissions":
+          return mockPermissions;
+        case "group_member_get": {
+          const f = friends.find((x) => x.id === a.userId);
+          const i = friends.indexOf(f!);
+          return { id: `gm_${i}`, roleIds: mockMemberRoles[String(a.userId)] ?? [i < 3 ? "r2" : "r3"], joinedAt: new Date(now - (i + 2) * 30 * 86400000).toISOString(), user: { id: a.userId, displayName: f?.displayName ?? "Someone" } };
+        }
+        case "group_member_role": {
+          const uid = String(a.userId);
+          const i = friends.findIndex((x) => x.id === uid);
+          const cur = mockMemberRoles[uid] ?? [i < 3 ? "r2" : "r3"];
+          mockMemberRoles[uid] = a.add ? [...new Set([...cur, String(a.roleId)])] : cur.filter((r) => r !== a.roleId);
+          return mockMemberRoles[uid];
+        }
+        case "group_member_kick":
+          mockKicked = [...mockKicked, String(a.userId)];
+          return null;
+        case "group_bans":
+          return mockBans;
+        case "moderations_of":
+          return mockModerations.filter((m) => m.targetUserId === a.userId);
+        case "moderation_set": {
+          const opposite: Record<string, string> = { mute: "unmute", muteChat: "unmuteChat", hideAvatar: "showAvatar" };
+          mockModerations = mockModerations.filter((m) => !(m.targetUserId === a.userId && (m.type === a.kind || m.type === opposite[String(a.kind)])));
+          if (a.on) mockModerations.push({ id: `pmod_${Date.now()}`, type: String(a.kind), targetUserId: String(a.userId) });
+          if (a.on && a.kind === "block") setTimeout(() => emit("friend:remove", a.userId), 300);
+          return { vrchatRunning: true };
+        }
+        case "friend_remove":
+          setTimeout(() => emit("friend:remove", a.userId), 100);
+          return null;
+        case "group_requests":
+          return OWNED_GROUPS.includes(String(a.groupId)) ? mockRequests : [];
+        case "group_request_respond":
+          mockRequests = mockRequests.filter((r) => r.user.id !== a.userId);
+          return null;
+        case "group_ban": {
+          const f = friends.find((x) => x.id === a.userId);
+          mockKicked = [...mockKicked, String(a.userId)];
+          mockBans = [{ id: `gb_${Date.now()}`, bannedAt: new Date().toISOString(), user: { id: String(a.userId), displayName: f?.displayName ?? "Someone", iconUrl: f?.currentAvatarThumbnailImageUrl } }, ...mockBans];
+          return null;
+        }
+        case "group_unban":
+          mockBans = mockBans.filter((b) => b.user.id !== a.userId);
+          mockKicked = mockKicked.filter((id) => id !== a.userId);
+          return null;
+        case "group_instance_create": {
+          const r = a.req as { worldId: string; access: string; region: string };
+          const num = Math.floor(10000 + Math.random() * 89999);
+          const instanceId = `${num}~group(${a.groupId})~groupAccessType(${r.access})~region(${r.region})`;
+          const location = `${r.worldId}:${instanceId}`;
+          mockGroupInstances = [...mockGroupInstances, { instanceId, location, memberCount: 0, world: worlds.find((w) => w.id === r.worldId) ?? worlds[0] }];
+          return { id: location, location, worldId: r.worldId, instanceId };
+        }
+        case "instance_close":
+          mockGroupInstances = mockGroupInstances.filter((i) => i.location !== a.location);
+          return null;
         case "groups_search": {
           const qq = String(a.query).toLowerCase();
           const all = [
@@ -349,11 +457,19 @@ export function installMock() {
         case "group_members_search":
           return friends.filter((f) => f.displayName.toLowerCase().includes(String(a.query).toLowerCase())).map((f, i) => ({ id: `gs_${i}`, roleIds: ["r3"], user: { id: f.id, displayName: f.displayName, iconUrl: f.currentAvatarThumbnailImageUrl } }));
         case "group_posts":
-          return { posts: [{ id: "p1", title: "Movie night Friday!", text: "Join us in Movie & Chill at 9pm.", createdAt: new Date(now - 86400000).toISOString(), imageUrl: img("post", 300, 200) }], total: 1 };
+          return { posts: mockPosts, total: mockPosts.length };
         case "group_instances":
-          return [{ instanceId: "1", location: `${W(3)}:4242~group(grp_1)~groupAccessType(public)`, memberCount: 12, world: worlds[3] }];
-        case "group_members":
-          return (a.offset as number) > 0 ? [] : friends.slice(0, 12).map((f, i) => ({ id: `gm_${i}`, roleIds: [i === 0 ? "r1" : i < 3 ? "r2" : "r3"], user: { id: f.id, displayName: f.displayName, iconUrl: f.currentAvatarThumbnailImageUrl } }));
+          return mockGroupInstances;
+        case "group_members": {
+          if ((a.offset as number) > 0) return [];
+          const owned = OWNED_GROUPS.includes(String(a.groupId));
+          const people = friends.slice(0, 12).filter((f) => !mockKicked.includes(f.id));
+          const list = people.map((f) => {
+            const i = friends.indexOf(f);
+            return { id: `gm_${i}`, roleIds: mockMemberRoles[f.id] ?? [!owned && i === 0 ? "r1" : i < 3 ? "r2" : "r3"], user: { id: f.id, displayName: f.displayName, iconUrl: f.currentAvatarThumbnailImageUrl } };
+          });
+          return owned ? [{ id: "gm_me", roleIds: ["r1"], user: { id: "usr_me", displayName: "You", iconUrl: img("me", 64, 64) } }, ...list] : list;
+        }
         case "avatar_lists":
           return [1, 2, 3].map((i) => ({ id: `fvgrp_${i}`, name: `avatars${i}`, displayName: ["Favorites", "Cute", "Spooky"][i - 1], type: "avatar", visibility: "private" }));
         case "inventory_all": {

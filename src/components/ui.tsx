@@ -226,6 +226,15 @@ export function Dialog({
         <RDialog.Overlay className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px] data-[state=open]:animate-in" />
         <RDialog.Content
           aria-describedby={undefined}
+          // An element marked `data-autofocus` gets focus on open. (A plain `autoFocus` loses to the
+          // focus trap of a dialog opened from another dialog.)
+          onOpenAutoFocus={(e) => {
+            const el = (e.currentTarget as HTMLElement | null)?.querySelector<HTMLElement>("[data-autofocus]");
+            if (el) {
+              e.preventDefault();
+              el.focus();
+            }
+          }}
           className={cn(
             "fixed left-1/2 top-1/2 z-50 max-h-[88vh] w-[min(760px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2",
             "overflow-hidden rounded-2xl border border-line bg-panel shadow-pop outline-none",

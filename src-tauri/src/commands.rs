@@ -735,6 +735,267 @@ pub async fn group_posts(app: AppHandle, group_id: String) -> Result<Value> {
     app.state::<AppState>().api.get(&format!("groups/{group_id}/posts"), &[("n", "20".into())]).await
 }
 
+// ---------------------------------------------------------------------------------------------
+// Group management. VRChat checks your role's permissions on every call; these only make sure
+// each id is shaped like one, so a request can't reach anything but the intended endpoint.
+
+/// The cached group (with its member count) is stale once someone joins or leaves it.
+fn forget_group_detail(st: &AppState, group_id: &str) {
+    let _ = st.db.conn().execute("DELETE FROM cache WHERE kind = 'group' AND id = ?1", [group_id]);
+}
+
+/// Ids that go into a URL path: user (incl. legacy 10-character ones), role and post ids.
+fn check_path_id(id: &str, what: &str) -> Result<()> {
+    if !id.is_empty() && id.len() <= 64 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+        Ok(())
+    } else {
+        Err(Error::Other(format!("Not a valid {what} id.")))
+    }
+}
+
+/// Fields of the group that can be edited from Nexus (VRChat's `UpdateGroupRequest`).
+/// `iconId` / `bannerId` are image files from your own icons and gallery.
+const GROUP_EDITABLE: [&str; 8] = ["name", "description", "rules", "links", "languages", "joinState", "iconId", "bannerId"];
+
+#[tauri::command]
+pub async fn group_update(app: AppHandle, group_id: String, patch: Value) -> Result<Value> {
+    check_group_id(&group_id)?;
+    let body: serde_json::Map<String, Value> = patch
+        .as_object()
+        .into_iter()
+        .flatten()
+        .filter(|(k, _)| GROUP_EDITABLE.contains(&k.as_str()))
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+    if body.is_empty() {
+        return Err(Error::Other("Nothing to save.".into()));
+    }
+    for key in ["iconId", "bannerId"] {
+        if let Some(v) = body.get(key).filter(|v| !v.is_null()) {
+            let ok = v.as_str().is_some_and(|id| id.starts_with("file_") && check_path_id(id, "file").is_ok());
+            if !ok {
+                return Err(Error::Other("That isn't one of your images.".into()));
+            }
+        }
+    }
+    let st = app.state::<AppState>();
+    let res = st.api.put(&format!("groups/{group_id}"), &Value::Object(body)).await?;
+    forget_group(&st, &group_id);
+    Ok(res)
+}
+
+#[tauri::command]
+pub async fn group_post_create(
+    app: AppHandle,
+    group_id: String,
+    title: String,
+    text: String,
+    visibility: String,
+    send_notification: bool,
+    role_ids: Vec<String>,
+) -> Result<Value> {
+    check_group_id(&group_id)?;
+    if !matches!(visibility.as_str(), "group" | "public") {
+        return Err(Error::Other("Unknown post visibility.".into()));
+    }
+    let (title, text) = (title.trim(), text.trim());
+    if title.is_empty() || text.is_empty() {
+        return Err(Error::Other("A post needs a title and some text.".into()));
+    }
+    for r in &role_ids {
+        check_path_id(r, "role")?;
+    }
+    let body = json!({
+        "title": title,
+        "text": text,
+        "visibility": visibility,
+        "sendNotification": send_notification,
+        "roleIds": role_ids,
+    });
+    app.state::<AppState>().api.post(&format!("groups/{group_id}/posts"), &body).await
+}
+
+#[tauri::command]
+pub async fn group_post_delete(app: AppHandle, group_id: String, post_id: String) -> Result<()> {
+    check_group_id(&group_id)?;
+    check_path_id(&post_id, "post")?;
+    app.state::<AppState>().api.delete(&format!("groups/{group_id}/posts/{post_id}")).await?;
+    Ok(())
+}
+
+/// Roles with their permission lists.
+#[tauri::command]
+pub async fn group_roles(app: AppHandle, group_id: String) -> Result<Value> {
+    check_group_id(&group_id)?;
+    app.state::<AppState>().api.get(&format!("groups/{group_id}/roles"), &[]).await
+}
+
+/// Every permission a role can have, with VRChat's display names and help text.
+#[tauri::command]
+pub async fn group_permissions(app: AppHandle, group_id: String) -> Result<Value> {
+    check_group_id(&group_id)?;
+    app.state::<AppState>().api.get(&format!("groups/{group_id}/permissions"), &[]).await
+}
+
+#[tauri::command]
+pub async fn group_member_get(app: AppHandle, group_id: String, user_id: String) -> Result<Value> {
+    check_group_id(&group_id)?;
+    check_path_id(&user_id, "user")?;
+    app.state::<AppState>().api.get(&format!("groups/{group_id}/members/{user_id}"), &[]).await
+}
+
+/// Give a member a role, or take it away.
+#[tauri::command]
+pub async fn group_member_role(app: AppHandle, group_id: String, user_id: String, role_id: String, add: bool) -> Result<Value> {
+    check_group_id(&group_id)?;
+    check_path_id(&user_id, "user")?;
+    check_path_id(&role_id, "role")?;
+    let api = &app.state::<AppState>().api;
+    let path = format!("groups/{group_id}/members/{user_id}/roles/{role_id}");
+    if add {
+        api.put(&path, &json!({})).await
+    } else {
+        api.delete(&path).await
+    }
+}
+
+#[tauri::command]
+pub async fn group_member_kick(app: AppHandle, group_id: String, user_id: String) -> Result<()> {
+    check_group_id(&group_id)?;
+    check_path_id(&user_id, "user")?;
+    let st = app.state::<AppState>();
+    st.api.delete(&format!("groups/{group_id}/members/{user_id}")).await?;
+    forget_group_detail(&st, &group_id);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn group_bans(app: AppHandle, group_id: String, offset: Option<u32>) -> Result<Value> {
+    check_group_id(&group_id)?;
+    let res = app
+        .state::<AppState>()
+        .api
+        .get(&format!("groups/{group_id}/bans"), &[("n", "100".into()), ("offset", offset.unwrap_or(0).to_string())])
+        .await?;
+    remember_members(&app, &res);
+    Ok(res)
+}
+
+/// People waiting for a moderator to let them in (not the ones who were blocked).
+#[tauri::command]
+pub async fn group_requests(app: AppHandle, group_id: String, offset: Option<u32>) -> Result<Value> {
+    check_group_id(&group_id)?;
+    let res = app
+        .state::<AppState>()
+        .api
+        .get(
+            &format!("groups/{group_id}/requests"),
+            &[("n", "100".into()), ("offset", offset.unwrap_or(0).to_string()), ("blocked", "false".into())],
+        )
+        .await?;
+    remember_members(&app, &res);
+    Ok(res)
+}
+
+/// Accept or decline a join request; `block` (decline only) stops them from asking again.
+#[tauri::command]
+pub async fn group_request_respond(app: AppHandle, group_id: String, user_id: String, accept: bool, block: bool) -> Result<()> {
+    check_group_id(&group_id)?;
+    check_path_id(&user_id, "user")?;
+    let body = json!({ "action": if accept { "accept" } else { "reject" }, "block": !accept && block });
+    let st = app.state::<AppState>();
+    st.api.put(&format!("groups/{group_id}/requests/{user_id}"), &body).await?;
+    if accept {
+        forget_group_detail(&st, &group_id);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn group_ban(app: AppHandle, group_id: String, user_id: String) -> Result<Value> {
+    check_group_id(&group_id)?;
+    check_path_id(&user_id, "user")?;
+    let st = app.state::<AppState>();
+    let res = st.api.post(&format!("groups/{group_id}/bans"), &json!({ "userId": user_id })).await?;
+    forget_group_detail(&st, &group_id);
+    Ok(res)
+}
+
+#[tauri::command]
+pub async fn group_unban(app: AppHandle, group_id: String, user_id: String) -> Result<()> {
+    check_group_id(&group_id)?;
+    check_path_id(&user_id, "user")?;
+    app.state::<AppState>().api.delete(&format!("groups/{group_id}/bans/{user_id}")).await?;
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GroupInstanceRequest {
+    world_id: String,
+    /// members | plus | public
+    access: String,
+    /// us | use | eu | jp
+    region: String,
+    #[serde(default)]
+    role_ids: Vec<String>,
+    #[serde(default)]
+    queue: bool,
+    #[serde(default)]
+    age_gate: bool,
+}
+
+/// Open a new instance owned by the group.
+#[tauri::command]
+pub async fn group_instance_create(app: AppHandle, group_id: String, req: GroupInstanceRequest) -> Result<Value> {
+    check_group_id(&group_id)?;
+    if !req.world_id.starts_with("wrld_") {
+        return Err(Error::Other("Pick a world first.".into()));
+    }
+    check_path_id(&req.world_id, "world")?;
+    if !matches!(req.access.as_str(), "members" | "plus" | "public") {
+        return Err(Error::Other("Unknown group access type.".into()));
+    }
+    if !matches!(req.region.as_str(), "us" | "use" | "eu" | "jp") {
+        return Err(Error::Other("Unknown region.".into()));
+    }
+    for r in &req.role_ids {
+        check_path_id(r, "role")?;
+    }
+    let mut body = json!({
+        "worldId": req.world_id,
+        "type": "group",
+        "ownerId": group_id,
+        "groupAccessType": req.access,
+        "region": req.region,
+        "queueEnabled": req.queue,
+        "ageGate": req.age_gate,
+    });
+    // Role restriction only applies to members-only instances.
+    if req.access == "members" && !req.role_ids.is_empty() {
+        body["roleIds"] = json!(req.role_ids);
+    }
+    app.state::<AppState>().api.post("instances", &body).await
+}
+
+/// Close an instance to new joiners; `hard_close` also sends everyone in it home.
+/// VRChat allows this for your own instances and for groups where you can manage instances.
+#[tauri::command]
+pub async fn instance_close(app: AppHandle, location: String, hard_close: bool) -> Result<Value> {
+    let Some(inst) = location::parse(&location) else {
+        return Err(Error::Other("That isn't an instance.".into()));
+    };
+    check_path_id(inst.world_id, "world")?;
+    if inst.instance_id.contains(['/', '?', '#', '\\']) {
+        return Err(Error::Other("That isn't an instance.".into()));
+    }
+    let query = [("hardClose", hard_close.to_string())];
+    app.state::<AppState>()
+        .api
+        .send(reqwest::Method::DELETE, &format!("instances/{}:{}", inst.world_id, inst.instance_id), &query, None, None)
+        .await
+}
+
 #[tauri::command]
 pub async fn user_mutuals(app: AppHandle, user_id: String) -> Result<Value> {
     let api = &app.state::<AppState>().api;
@@ -1184,6 +1445,97 @@ pub async fn friend_request(app: AppHandle, user_id: String) -> Result<()> {
 }
 
 #[tauri::command]
+pub async fn friend_remove(app: AppHandle, user_id: String) -> Result<()> {
+    check_path_id(&user_id, "user")?;
+    app.state::<AppState>().api.delete(&format!("auth/user/friends/{user_id}")).await?;
+    // Update the friends list now rather than waiting for VRChat's live event.
+    sync::expect_unfriend(&user_id);
+    sync::remove_friend(&app, &user_id);
+    Ok(())
+}
+
+/// The player moderations Nexus manages: block, voice mute, chatbox mute and hidden avatar.
+const MODERATIONS: [&str; 4] = ["block", "mute", "muteChat", "hideAvatar"];
+
+/// Where VRChat keeps its files on this PC (the folder set in Settings, or the usual one).
+fn vrchat_data_dir(app: &AppHandle) -> Option<std::path::PathBuf> {
+    let custom = app.state::<AppState>().settings().log_dir.filter(|s| !s.trim().is_empty());
+    custom.map(std::path::PathBuf::from).or_else(crate::gamelog::default_log_dir)
+}
+
+fn show_hide_file(app: &AppHandle) -> Result<std::path::PathBuf> {
+    let me = app.state::<AppState>().me_id()?;
+    let dir = vrchat_data_dir(app).ok_or_else(|| Error::Other("Couldn't find the VRChat folder. Set it in Settings → VRChat.".into()))?;
+    Ok(crate::local_moderation::file_path(&dir, &me))
+}
+
+/// Your own moderations of one person. Block and mutes come from VRChat; show / hide avatar
+/// comes from VRChat's file on this PC, since that's the only place VRChat keeps it.
+#[tauri::command]
+pub async fn moderations_of(app: AppHandle, user_id: String) -> Result<Value> {
+    check_path_id(&user_id, "user")?;
+    let st = app.state::<AppState>();
+    // Only decides which badges a profile shows, so it shouldn't hold up anything else.
+    let res = crate::api::background(st.api.get("auth/user/playermoderations", &[("targetUserId", user_id.clone())])).await?;
+    let mut list: Vec<Value> = res
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|m| !matches!(str_of(m, "type"), "hideAvatar" | "showAvatar"))
+        .cloned()
+        .collect();
+    let local = show_hide_file(&app).ok().and_then(|path| crate::local_moderation::get(&path, &user_id).ok().flatten());
+    let kind = match local {
+        Some(crate::local_moderation::HIDE) => Some("hideAvatar"),
+        Some(crate::local_moderation::SHOW) => Some("showAvatar"),
+        _ => None,
+    };
+    if let Some(kind) = kind {
+        list.push(json!({ "id": format!("local_{kind}"), "type": kind, "targetUserId": user_id }));
+    }
+    Ok(Value::Array(list))
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModerationOutcome {
+    /// VRChat only picks changes up when it starts, so a running copy needs a restart.
+    vrchat_running: bool,
+}
+
+/// Turn a moderation of someone on or off. Off removes it, so VRChat falls back to your
+/// safety settings (e.g. their avatar shows again if your trust settings allow it).
+#[tauri::command]
+pub async fn moderation_set(app: AppHandle, user_id: String, kind: String, on: bool) -> Result<ModerationOutcome> {
+    check_path_id(&user_id, "user")?;
+    if !MODERATIONS.contains(&kind.as_str()) {
+        return Err(Error::Other(format!("Unknown moderation {kind}")));
+    }
+    let st = app.state::<AppState>();
+    if st.me_id().is_ok_and(|me| me == user_id) {
+        return Err(Error::Other("You can't do that to yourself.".into()));
+    }
+    if kind == "hideAvatar" {
+        // VRChat ignores this one on its servers; it only reads its own file.
+        let path = show_hide_file(&app)?;
+        crate::local_moderation::set(&path, &user_id, on.then_some(crate::local_moderation::HIDE))
+            .map_err(|e| Error::Other(format!("Couldn't update VRChat's avatar settings: {e}")))?;
+    } else {
+        let body = json!({ "moderated": user_id, "type": kind });
+        if on {
+            if kind == "block" {
+                // Blocking a friend also unfriends them.
+                sync::expect_unfriend(&user_id);
+            }
+            st.api.post("auth/user/playermoderations", &body).await?;
+        } else {
+            st.api.put("auth/user/unplayermoderate", &body).await?;
+        }
+    }
+    Ok(ModerationOutcome { vrchat_running: crate::gamelog::vrchat_running().unwrap_or(false) })
+}
+
+#[tauri::command]
 pub async fn notifications_list(app: AppHandle) -> Result<Value> {
     let api = &app.state::<AppState>().api;
     let v1 = api.get("auth/user/notifications", &[("n", "100".into())]).await?;
@@ -1406,4 +1758,23 @@ pub async fn vrcx_import(app: AppHandle, path: Option<String>) -> Result<crate::
     tauri::async_runtime::spawn_blocking(move || crate::vrcx::import(&app, path))
         .await
         .map_err(|e| Error::Other(e.to_string()))?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn path_ids_cannot_leave_their_endpoint() {
+        for ok in ["usr_c1644b5b-3ca4-45b4-97c6-a2a0de70d469", "8JoV9XEdpo", "grol_0a1b-2c", "gpst_x-1"] {
+            assert!(check_path_id(ok, "test").is_ok(), "{ok}");
+        }
+        let long = "a".repeat(65);
+        for bad in ["", "usr_1/../../auth/user", "usr_1?n=1", "a b", "usr_1#x", "..", long.as_str()] {
+            assert!(check_path_id(bad, "test").is_err(), "{bad}");
+        }
+        assert!(check_group_id("grp_0a1b-2c").is_ok());
+        assert!(check_group_id("grp_0a1b/members").is_err());
+        assert!(check_group_id("usr_0a1b").is_err());
+    }
 }

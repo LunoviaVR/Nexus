@@ -116,7 +116,7 @@ const PROCESS_CHECK_EVERY: Duration = Duration::from_secs(10);
 
 /// Whether VRChat.exe is running; None if we couldn't tell (then nothing is cleared).
 #[cfg(windows)]
-fn vrchat_running() -> Option<bool> {
+pub(crate) fn vrchat_running() -> Option<bool> {
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
     let out = std::process::Command::new("tasklist")
@@ -128,7 +128,7 @@ fn vrchat_running() -> Option<bool> {
 }
 
 #[cfg(not(windows))]
-fn vrchat_running() -> Option<bool> {
+pub(crate) fn vrchat_running() -> Option<bool> {
     None
 }
 

@@ -6,6 +6,7 @@ mod discord;
 mod error;
 mod gamelog;
 mod images;
+mod local_moderation;
 mod location;
 mod people;
 mod pipeline;
@@ -110,6 +111,21 @@ pub fn run() {
             commands::my_group_instances_refresh,
             commands::group_members_search,
             commands::group_posts,
+            commands::group_update,
+            commands::group_post_create,
+            commands::group_post_delete,
+            commands::group_roles,
+            commands::group_permissions,
+            commands::group_member_get,
+            commands::group_member_role,
+            commands::group_member_kick,
+            commands::group_bans,
+            commands::group_requests,
+            commands::group_request_respond,
+            commands::group_ban,
+            commands::group_unban,
+            commands::group_instance_create,
+            commands::instance_close,
             commands::user_worlds,
             commands::user_note_set,
             commands::balance_get,
@@ -141,6 +157,9 @@ pub fn run() {
             commands::open_external,
             commands::status_set,
             commands::friend_request,
+            commands::friend_remove,
+            commands::moderations_of,
+            commands::moderation_set,
             commands::notifications_list,
             commands::notification_accept,
             commands::notification_hide,
