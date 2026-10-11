@@ -30,8 +30,11 @@ import type {
   InventoryItem,
   VrcPrint,
   ProfilePatch,
+  CreatedInstance,
   GroupInstanceRequest,
   GroupPatch,
+  InstanceAccess,
+  InstanceRegion,
   ModerationKind,
   PlayerModeration,
   VrcGroup,
@@ -121,8 +124,9 @@ export const ipc = {
   groupBans: (groupId: string, offset = 0) => invoke<VrcGroupMember[]>("group_bans", { groupId, offset }),
   banGroupMember: (groupId: string, userId: string) => invoke<unknown>("group_ban", { groupId, userId }),
   unbanGroupMember: (groupId: string, userId: string) => invoke<void>("group_unban", { groupId, userId }),
-  createGroupInstance: (groupId: string, req: GroupInstanceRequest) =>
-    invoke<{ location?: string; id?: string; worldId?: string; instanceId?: string }>("group_instance_create", { groupId, req }),
+  createGroupInstance: (groupId: string, req: GroupInstanceRequest) => invoke<CreatedInstance>("group_instance_create", { groupId, req }),
+  createInstance: (worldId: string, access: InstanceAccess, region: InstanceRegion) =>
+    invoke<CreatedInstance>("instance_create", { worldId, access, region }),
   closeInstance: (location: string, hardClose: boolean) => invoke<unknown>("instance_close", { location, hardClose }),
   userWorlds: (userId: string) => invoke<World[]>("user_worlds", { userId }),
   setNote: (userId: string, note: string) => invoke<unknown>("user_note_set", { userId, note }),

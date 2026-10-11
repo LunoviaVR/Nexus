@@ -124,6 +124,7 @@ pub fn run() {
             commands::group_request_respond,
             commands::group_ban,
             commands::group_unban,
+            commands::instance_create,
             commands::group_instance_create,
             commands::instance_close,
             commands::user_worlds,

@@ -167,10 +167,23 @@ export interface GroupPatch {
   bannerId?: string;
 }
 
+export type InstanceRegion = "us" | "use" | "eu" | "jp";
+
+/** A new instance that's public or yours; group instances use `GroupInstanceRequest`. */
+export type InstanceAccess = "public" | "friends+" | "friends" | "invite+" | "invite";
+
+/** What VRChat sends back for a new instance. */
+export interface CreatedInstance {
+  location?: string;
+  id?: string;
+  worldId?: string;
+  instanceId?: string;
+}
+
 export interface GroupInstanceRequest {
   worldId: string;
   access: "members" | "plus" | "public";
-  region: "us" | "use" | "eu" | "jp";
+  region: InstanceRegion;
   roleIds?: string[];
   queue?: boolean;
   ageGate?: boolean;

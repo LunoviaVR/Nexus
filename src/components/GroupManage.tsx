@@ -5,9 +5,9 @@ import { toast } from "sonner";
 import { ago, cn } from "@/lib/format";
 import { fileUrls, toPngBase64 } from "@/lib/image";
 import { errorText, ipc } from "@/lib/ipc";
-import { parseLocation } from "@/lib/location";
+import { createdLocation, parseLocation } from "@/lib/location";
 import { useWorld } from "@/lib/queries";
-import type { GroupInstanceRequest, GroupPatch, VrcFile, VrcGroupDetail, VrcGroupMember, VrcGroupRole, World } from "@/lib/types";
+import type { GroupInstanceRequest, GroupPatch, InstanceRegion, VrcFile, VrcGroupDetail, VrcGroupMember, VrcGroupRole, World } from "@/lib/types";
 import { useAuth } from "@/stores/auth";
 import { actions, UserAvatar } from "./people";
 import { Button, Chip, Confirm, Dialog, Empty, IconButton, Img, Input, Segmented, Skeleton, Switch, Tip } from "./ui";
@@ -26,6 +26,10 @@ const LANGUAGES_MAX = 3;
  */
 export function useGroupPerms(g: VrcGroupDetail) {
   const meId = useAuth((s) => s.user?.id);
+  return groupPerms(g, meId);
+}
+
+export function groupPerms(g: VrcGroupDetail, meId: string | undefined) {
   const isOwner = !!meId && g.ownerId === meId;
   const mine = g.myMember?.permissions ?? [];
   const can = (p: string) => isOwner || mine.includes("*") || mine.includes(p);
@@ -48,7 +52,7 @@ export function useGroupPerms(g: VrcGroupDetail) {
   };
 }
 
-export type GroupPerms = ReturnType<typeof useGroupPerms>;
+export type GroupPerms = ReturnType<typeof groupPerms>;
 
 /** Pending join requests, for people who can let others in. */
 export function useJoinRequests(groupId: string, enabled: boolean) {
@@ -64,7 +68,7 @@ export function memberRoleIds(m?: Pick<VrcGroupMember, "roleIds" | "mRoleIds"> |
 // Building blocks
 
 /** Header, scrolling body and an action bar, sized for a dialog. */
-function Frame({ title, subtitle, children, footer }: { title: string; subtitle?: ReactNode; children: ReactNode; footer: ReactNode }) {
+export function Frame({ title, subtitle, children, footer }: { title: string; subtitle?: ReactNode; children: ReactNode; footer: ReactNode }) {
   return (
     <div className="flex max-h-[88vh] flex-col">
       <div className="border-b border-line px-6 py-4 pr-14">
@@ -77,7 +81,7 @@ function Frame({ title, subtitle, children, footer }: { title: string; subtitle?
   );
 }
 
-function Field({ label, hint, count, children }: { label: string; hint?: ReactNode; count?: [number, number]; children: ReactNode }) {
+export function Field({ label, hint, count, children }: { label: string; hint?: ReactNode; count?: [number, number]; children: ReactNode }) {
   return (
     <div>
       <div className="mb-1.5 flex items-baseline justify-between gap-3">
@@ -93,7 +97,7 @@ function Field({ label, hint, count, children }: { label: string; hint?: ReactNo
 const TEXTAREA =
   "w-full resize-y rounded-lg border border-line bg-panel-2 px-3 py-2 text-[13px] leading-relaxed outline-none placeholder:text-subtle focus:border-accent focus:ring-2 focus:ring-accent-soft";
 
-function SwitchRow({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange: (v: boolean) => void }) {
+export function SwitchRow({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <div className="flex items-center justify-between gap-4 py-1.5">
       <div>
@@ -105,7 +109,7 @@ function SwitchRow({ label, hint, checked, onChange }: { label: string; hint?: s
   );
 }
 
-function RoleChips({ roles, value, onChange }: { roles: { id: string; name: string; order?: number }[]; value: string[]; onChange: (ids: string[]) => void }) {
+export function RoleChips({ roles, value, onChange }: { roles: { id: string; name: string; order?: number }[]; value: string[]; onChange: (ids: string[]) => void }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {[...roles]
@@ -515,18 +519,24 @@ export function DeletePostButton({ groupId, postId, title }: { groupId: string; 
 // ---------------------------------------------------------------------------------------------
 // Instances
 
-const ACCESS: { value: GroupInstanceRequest["access"]; label: string; hint: string; perm: string }[] = [
+export const GROUP_ACCESS: { value: GroupInstanceRequest["access"]; label: string; hint: string; perm: string }[] = [
   { value: "members", label: "Members only", hint: "Only group members can join.", perm: "group-instance-open-create" },
   { value: "plus", label: "Group+", hint: "Members, plus friends of anyone inside.", perm: "group-instance-plus-create" },
   { value: "public", label: "Group Public", hint: "Anyone can join; it's listed on the group.", perm: "group-instance-public-create" },
 ];
 
-const REGIONS: { value: GroupInstanceRequest["region"]; label: string }[] = [
+export const REGIONS: { value: InstanceRegion; label: string }[] = [
   { value: "us", label: "US West" },
   { value: "use", label: "US East" },
   { value: "eu", label: "Europe" },
   { value: "jp", label: "Japan" },
 ];
+
+/** The region you're in now, so a new instance opens near you. */
+export function regionNear(location?: string | null): InstanceRegion {
+  const r = parseLocation(location).region;
+  return REGIONS.find((x) => x.value === r)?.value ?? "us";
+}
 
 export function NewInstanceDialog({ g, perms, open, onClose }: { g: VrcGroupDetail; perms: GroupPerms; open: boolean; onClose: () => void }) {
   return (
@@ -539,13 +549,10 @@ export function NewInstanceDialog({ g, perms, open, onClose }: { g: VrcGroupDeta
 function NewInstance({ g, perms, onDone }: { g: VrcGroupDetail; perms: GroupPerms; onDone: () => void }) {
   const qc = useQueryClient();
   const myLocation = useAuth((s) => s.user?.$location);
-  const allowed = ACCESS.filter((a) => perms.can(a.perm));
+  const allowed = GROUP_ACCESS.filter((a) => perms.can(a.perm));
   const [world, setWorld] = useState<World | null>(null);
   const [access, setAccess] = useState<GroupInstanceRequest["access"]>(allowed[0]?.value ?? "members");
-  const [region, setRegion] = useState<GroupInstanceRequest["region"]>(() => {
-    const r = parseLocation(myLocation).region;
-    return REGIONS.find((x) => x.value === r)?.value ?? "us";
-  });
+  const [region, setRegion] = useState(() => regionNear(myLocation));
   const [roleIds, setRoleIds] = useState<string[]>([]);
   const [queue, setQueue] = useState(true);
   const [ageGate, setAgeGate] = useState(false);
@@ -565,9 +572,9 @@ function NewInstance({ g, perms, onDone }: { g: VrcGroupDetail; perms: GroupPerm
         queue,
         ageGate: canAgeGate && ageGate,
       });
-      const location = res.location ?? (res.worldId && res.instanceId ? `${res.worldId}:${res.instanceId}` : res.id);
+      const location = createdLocation(res);
       await Promise.all([qc.invalidateQueries({ queryKey: ["group-instances", g.id] }), qc.invalidateQueries({ queryKey: ["my-group-instances"] })]);
-      toast.success(`Opened ${world.name}`, location?.startsWith("wrld_") ? { action: { label: "Join", onClick: () => actions.join(location) } } : undefined);
+      toast.success(`Opened ${world.name}`, location ? { action: { label: "Join", onClick: () => actions.join(location) } } : undefined);
       onDone();
     } catch (e) {
       toast.error(errorText(e));
@@ -594,7 +601,7 @@ function NewInstance({ g, perms, onDone }: { g: VrcGroupDetail; perms: GroupPerm
       <Field label="World">
         <WorldPicker value={world} onChange={setWorld} />
       </Field>
-      <Field label="Access" hint={ACCESS.find((a) => a.value === access)?.hint}>
+      <Field label="Access" hint={GROUP_ACCESS.find((a) => a.value === access)?.hint}>
         {allowed.length ? (
           <Segmented value={access} onChange={setAccess} options={allowed.map(({ value, label }) => ({ value, label }))} />
         ) : (

@@ -945,19 +945,50 @@ pub struct GroupInstanceRequest {
     age_gate: bool,
 }
 
+/// Checks every new instance needs: a real world and one of VRChat's regions.
+fn check_new_instance(world_id: &str, region: &str) -> Result<()> {
+    if !world_id.starts_with("wrld_") {
+        return Err(Error::Other("Pick a world first.".into()));
+    }
+    check_path_id(world_id, "world")?;
+    if !matches!(region, "us" | "use" | "eu" | "jp") {
+        return Err(Error::Other("Unknown region.".into()));
+    }
+    Ok(())
+}
+
+/// Open a new public instance, or one you own. `access`: public | friends+ | friends | invite+ | invite.
+/// Group instances go through `group_instance_create`.
+#[tauri::command]
+pub async fn instance_create(app: AppHandle, world_id: String, access: String, region: String) -> Result<Value> {
+    check_new_instance(&world_id, &region)?;
+    let (kind, can_request_invite) = match access.as_str() {
+        "public" => ("public", false),
+        "friends+" => ("hidden", false),
+        "friends" => ("friends", false),
+        "invite+" => ("private", true),
+        "invite" => ("private", false),
+        _ => return Err(Error::Other("Unknown instance type.".into())),
+    };
+    let st = app.state::<AppState>();
+    let mut body = json!({ "worldId": world_id, "type": kind, "region": region });
+    // Public instances have no owner; the rest are yours.
+    if kind != "public" {
+        body["ownerId"] = json!(st.me_id()?);
+    }
+    if kind == "private" {
+        body["canRequestInvite"] = json!(can_request_invite);
+    }
+    st.api.post("instances", &body).await
+}
+
 /// Open a new instance owned by the group.
 #[tauri::command]
 pub async fn group_instance_create(app: AppHandle, group_id: String, req: GroupInstanceRequest) -> Result<Value> {
     check_group_id(&group_id)?;
-    if !req.world_id.starts_with("wrld_") {
-        return Err(Error::Other("Pick a world first.".into()));
-    }
-    check_path_id(&req.world_id, "world")?;
+    check_new_instance(&req.world_id, &req.region)?;
     if !matches!(req.access.as_str(), "members" | "plus" | "public") {
         return Err(Error::Other("Unknown group access type.".into()));
-    }
-    if !matches!(req.region.as_str(), "us" | "use" | "eu" | "jp") {
-        return Err(Error::Other("Unknown region.".into()));
     }
     for r in &req.role_ids {
         check_path_id(r, "role")?;

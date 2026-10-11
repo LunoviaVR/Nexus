@@ -71,7 +71,7 @@ It's built with [Tauri 2](https://tauri.app) (a Rust core with a React interface
 
 ### 🌍 Worlds & avatars
 
-- **Worlds:** popular, recent, favorite and your own worlds, plus VRChat search. Open a world to see its instances, who opened each one, which friends are inside, and join or invite yourself. Click a creator to see all their worlds.
+- **Worlds:** popular, recent, favorite and your own worlds, plus VRChat search. Open a world to see its instances, who opened each one, which friends are inside, and join or invite yourself, or start a new instance: public, friends, invite or one of your groups'. Click a creator to see all their worlds.
 - **Avatars:** switch to your own avatars or any of your favorite lists, and add or remove favorites.
 - **Avatar discover:** search public avatars by name, author or tags through the community index [avtrDB](https://avtrdb.com), with platform and performance filters.
 

@@ -416,6 +416,12 @@ export function installMock() {
           mockGroupInstances = [...mockGroupInstances, { instanceId, location, memberCount: 0, world: worlds.find((w) => w.id === r.worldId) ?? worlds[0] }];
           return { id: location, location, worldId: r.worldId, instanceId };
         }
+        case "instance_create": {
+          const owner: Record<string, string> = { "friends+": "~hidden(usr_me)", friends: "~friends(usr_me)", "invite+": "~private(usr_me)~canRequestInvite", invite: "~private(usr_me)" };
+          const instanceId = `${Math.floor(10000 + Math.random() * 89999)}${owner[String(a.access)] ?? ""}~region(${a.region})`;
+          const location = `${a.worldId}:${instanceId}`;
+          return { id: location, location, worldId: a.worldId, instanceId };
+        }
         case "instance_close":
           mockGroupInstances = mockGroupInstances.filter((i) => i.location !== a.location);
           return null;

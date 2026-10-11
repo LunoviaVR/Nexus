@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { InstanceAccess } from "@/lib/types";
 
 export type Page =
   | "home"
@@ -29,6 +30,12 @@ export interface FriendsLayout {
   showOffline: boolean;
 }
 
+/** What you last picked when opening an instance from a world, to start from next time. */
+export interface InstancePrefs {
+  type: InstanceAccess | "group";
+  groupId: string | null;
+}
+
 export const DEFAULT_FRIENDS_LAYOUT: FriendsLayout = {
   groupBy: "instance",
   sort: "name",
@@ -47,6 +54,8 @@ interface UiState {
   paletteOpen: boolean;
   friendsLayout: FriendsLayout;
   setFriendsLayout: (patch: Partial<FriendsLayout>) => void;
+  instancePrefs: InstancePrefs;
+  setInstancePrefs: (prefs: InstancePrefs) => void;
   userId: string | null;
   /** Profile tab to open on (e.g. "worlds"); null for the default. */
   userTab: string | null;
@@ -84,6 +93,8 @@ export const useUi = create<UiState>()(
       paletteOpen: false,
       friendsLayout: DEFAULT_FRIENDS_LAYOUT,
       setFriendsLayout: (patch) => set((s) => ({ friendsLayout: { ...s.friendsLayout, ...patch } })),
+      instancePrefs: { type: "public", groupId: null },
+      setInstancePrefs: (instancePrefs) => set({ instancePrefs }),
       userId: null,
       userTab: null,
       worldId: null,
@@ -115,6 +126,7 @@ export const useUi = create<UiState>()(
         accentHue: s.accentHue,
         page: s.page,
         friendsLayout: s.friendsLayout,
+        instancePrefs: s.instancePrefs,
       }),
       // Older saved state has no friendsLayout; fill in any missing fields.
       merge: (persisted, current) => {

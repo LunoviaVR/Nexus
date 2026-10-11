@@ -102,6 +102,12 @@ export function isJoinable(p: ParsedLocation): boolean {
   return p.kind === "instance" && !!p.access && !["invite", "invite+", "group"].includes(p.access);
 }
 
+/** The location of an instance VRChat just created for us. */
+export function createdLocation(res: { location?: string; id?: string; worldId?: string; instanceId?: string }): string | undefined {
+  const loc = res.location ?? (res.worldId && res.instanceId ? `${res.worldId}:${res.instanceId}` : res.id);
+  return loc?.startsWith("wrld_") ? loc : undefined;
+}
+
 export function sameInstance(a?: string | null, b?: string | null): boolean {
   if (!a || !b) return false;
   return a.split("~")[0] === b.split("~")[0];

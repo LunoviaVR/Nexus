@@ -1,4 +1,4 @@
-import { Copy, ExternalLink, Globe, Heart, LogIn, Send, Users, Eye, CalendarDays } from "lucide-react";
+import { Copy, ExternalLink, Globe, Heart, LogIn, Plus, Send, Users, Eye, CalendarDays } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { errorText, ipc } from "@/lib/ipc";
@@ -7,6 +7,7 @@ import { useInstance, useWorld } from "@/lib/queries";
 import type { VrcUser } from "@/lib/types";
 import { useFriends } from "@/stores/friends";
 import { useUi } from "@/stores/ui";
+import { CreateInstanceDialog } from "./CreateInstanceDialog";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { FavoriteButton } from "./AvatarFavoriteButton";
 import { RefreshButton } from "./RefreshButton";
@@ -92,10 +93,12 @@ function InstanceRow({ row, focus }: { row: Row; focus: boolean }) {
 
 function WorldBody({ worldId, focus }: { worldId: string; focus: string | null }) {
   const openUser = useUi((s) => s.openUser);
+  const openWorld = useUi((s) => s.openWorld);
   const { data: w, isLoading, error } = useWorld(worldId);
   const byId = useFriends((s) => s.byId);
   const [tab, setTab] = useState<"instances" | "about">("instances");
   const [viewing, setViewing] = useState<number | null>(null);
+  const [creating, setCreating] = useState(false);
 
   const rows = useMemo<Row[]>(() => {
     const map = new Map<string, Row>();
@@ -189,7 +192,7 @@ function WorldBody({ worldId, focus }: { worldId: string; focus: string | null }
           </IconButton>
         </div>
       </div>
-      <div className="px-6 pt-3">
+      <div className="flex items-center gap-2 px-6 pt-3">
         <Segmented
           value={tab}
           onChange={setTab}
@@ -198,7 +201,20 @@ function WorldBody({ worldId, focus }: { worldId: string; focus: string | null }
             { value: "about", label: "About" },
           ]}
         />
+        <Button size="sm" className="ml-auto" icon={<Plus className="size-3.5" />} onClick={() => setCreating(true)}>
+          New instance
+        </Button>
       </div>
+      {/* The new instance shows first in the list, highlighted, with its Join and Invite me buttons. */}
+      <CreateInstanceDialog
+        world={w}
+        open={creating}
+        onClose={() => setCreating(false)}
+        onCreated={(location) => {
+          setTab("instances");
+          openWorld(w.id, location);
+        }}
+      />
       <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6 pt-3">
         {tab === "instances" ? (
           rows.length ? (
