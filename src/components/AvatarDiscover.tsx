@@ -38,7 +38,8 @@ export function AvatarDiscover() {
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<Mode>("any");
-  const [platforms, setPlatforms] = useState<Set<Platform>>(new Set());
+  // Every platform starts on; switching one off drops avatars you could only use there.
+  const [platforms, setPlatforms] = useState<Set<Platform>>(() => new Set(PLATFORMS.map((p) => p.id)));
   const [minPerf, setMinPerf] = useState<MinPerf>("any");
   const [hideMature, setHideMature] = useState(true);
   const [impostorOnly, setImpostorOnly] = useState(false);
@@ -62,24 +63,26 @@ export function AvatarDiscover() {
 
   const shown = useMemo(() => {
     const q = query.toLowerCase();
-    const perfPlatforms: Platform[] = platforms.size ? [...platforms] : ["pc"];
     return loaded.filter((a) => {
       if (mode === "author" && !a.author.name.toLowerCase().includes(q)) return false;
       if (mode === "tags" && !allTags(a).some((t) => t.toLowerCase().includes(q))) return false;
-      for (const p of platforms) if (!a.compatibility?.includes(p)) return false;
-      if (minPerf !== "any" && perfPlatforms.some((p) => (RANK[ratingFor(a, p) ?? ""] ?? -1) < RANK[minPerf])) return false;
+      // The platforms you have on that this avatar has a build for; it needs at least one (unless avtrDB didn't say).
+      const usable = [...platforms].filter((p) => a.compatibility?.includes(p));
+      if (a.compatibility?.length && !usable.length) return false;
+      if (minPerf !== "any" && !usable.some((p) => (RANK[ratingFor(a, p) ?? ""] ?? -1) >= RANK[minPerf])) return false;
       if (hideMature && (a.explicit || (a.tags?.content_tags?.length ?? 0) > 0)) return false;
       if (impostorOnly && !a.performance?.has_impostor) return false;
       return true;
     });
   }, [loaded, query, mode, platforms, minPerf, hideMature, impostorOnly]);
 
-  const togglePlatform = (p: Platform) => {
-    const n = new Set(platforms);
-    if (n.has(p)) n.delete(p);
-    else n.add(p);
-    setPlatforms(n);
-  };
+  const togglePlatform = (p: Platform) =>
+    setPlatforms((cur) => {
+      const n = new Set(cur);
+      if (n.has(p)) n.delete(p);
+      else n.add(p);
+      return n;
+    });
 
   return (
     <div>
@@ -94,7 +97,11 @@ export function AvatarDiscover() {
           icon={<Search className="size-4" />}
           placeholder={mode === "author" ? "Creator name" : mode === "tags" ? "Tag, e.g. protogen" : "Search public avatars"}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => {
+            setInput(e.target.value);
+            // Emptying the box (typing it away or the native clear) drops the last search.
+            if (!e.target.value.trim()) setQuery("");
+          }}
           className="w-72"
           autoFocus
         />
@@ -195,7 +202,7 @@ export function AvatarDiscover() {
                       </button>
                     </div>
                     <div className="flex flex-wrap gap-1">
-                      {PLATFORMS.filter((p) => a.compatibility?.includes(p.id)).map((p) => {
+                      {PLATFORMS.filter((p) => platforms.has(p.id) && a.compatibility?.includes(p.id)).map((p) => {
                         const r = ratingFor(a, p.id);
                         return (
                           <span key={p.id} title={r ? `${p.label}: ${r}` : p.label} className="rounded bg-panel-2 px-1.5 py-px text-[10.5px] font-semibold">

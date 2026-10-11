@@ -12,7 +12,7 @@ import { FavoriteButton } from "./AvatarFavoriteButton";
 import { RefreshButton } from "./RefreshButton";
 import { ImageViewer } from "./ImageViewer";
 import { fullSizeUrl } from "@/lib/image";
-import { actions, InstanceBadge, UserAvatar } from "./people";
+import { actions, InstanceBadge, InstanceOwner, UserAvatar } from "./people";
 import { Badge, Button, Dialog, Empty, IconButton, Img, Segmented, Skeleton, Tip } from "./ui";
 
 export function WorldDialog() {
@@ -63,6 +63,7 @@ function InstanceRow({ row, focus }: { row: Row; focus: boolean }) {
               {inst.data?.capacity ? `/${inst.data.capacity}` : ""}
             </span>
           )}
+          <InstanceOwner location={row.location} ownerId={inst.data?.ownerId} />
         </div>
         {row.friends.length > 0 && (
           <div className="mt-1.5 flex flex-wrap items-center gap-1">

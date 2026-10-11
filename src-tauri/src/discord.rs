@@ -30,7 +30,8 @@ const HEARTBEAT: Duration = Duration::from_secs(60);
 const RECONNECT_EVERY: Duration = Duration::from_secs(10);
 /// Hopping to another world briefly leaves no location; keep the old one up rather than blinking off.
 const TRAVEL_GRACE: Duration = Duration::from_secs(15);
-const WORLD_RETRY: Duration = Duration::from_secs(60);
+/// How soon to retry a world or instance-owner lookup that failed.
+const LOOKUP_RETRY: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase", tag = "state")]
@@ -212,7 +213,8 @@ fn text(s: &str) -> Option<String> {
 }
 
 /// The Discord activity for where you are, or None when you're not in a world.
-pub fn activity(inst: &InstanceState, world: Option<&WorldInfo>, s: &AppSettings) -> Option<Value> {
+/// `owner` is the display name of whoever opened the instance (a user or a group).
+pub fn activity(inst: &InstanceState, world: Option<&WorldInfo>, owner: Option<&str>, s: &AppSettings) -> Option<Value> {
     let loc = inst.location.as_deref()?;
     let i = location::parse(loc)?;
     let mut a = Map::new();
@@ -226,7 +228,16 @@ pub fn activity(inst: &InstanceState, world: Option<&WorldInfo>, s: &AppSettings
 
     let name = inst.world_name.as_deref().or(world.and_then(|w| w.name.as_deref())).and_then(text);
     a.insert("details".into(), name.clone().unwrap_or_else(|| "In a world".into()).into());
-    a.insert("state".into(), format!("{} · {}", i.access.label(), location::region_label(i.region)).into());
+    let (access, region) = (i.access.label(), location::region_label(i.region));
+    let state = match owner {
+        // The access label already says it's a group instance.
+        Some(o) if i.owner.is_some_and(|id| id.starts_with("grp_")) => format!("{access} · {o} · {region}"),
+        Some(o) => format!("{access} · Hosted by {o} · {region}"),
+        None => format!("{access} · {region}"),
+    };
+    if let Some(state) = text(&state) {
+        a.insert("state".into(), state.into());
+    }
     if let Some(image) = world.and_then(|w| w.image.as_deref()) {
         let mut assets = Map::new();
         assets.insert("large_image".into(), image.into());
@@ -265,6 +276,7 @@ pub fn spawn(app: AppHandle) {
             last_connect: None,
             gone_since: None,
             world: None,
+            owner: None,
         };
         loop {
             p.tick();
@@ -283,6 +295,8 @@ struct Presence {
     gone_since: Option<Instant>,
     /// The current world's id and API details (None if fetching them failed), and when we looked.
     world: Option<(String, Option<WorldInfo>, Instant)>,
+    /// The current instance owner's id and name (None if the lookup failed), and when we looked.
+    owner: Option<(String, Option<String>, Instant)>,
 }
 
 impl Presence {
@@ -297,7 +311,8 @@ impl Presence {
         }
         let inst = st.instance.lock().clone();
         let world = self.world_info(&inst);
-        let Some(want) = activity(&inst, world.as_ref(), &settings) else {
+        let owner = self.owner_name(&inst, &settings);
+        let Some(want) = activity(&inst, world.as_ref(), owner.as_deref(), &settings) else {
             let gone = *self.gone_since.get_or_insert_with(Instant::now);
             if self.shown.is_none() || gone.elapsed() >= TRAVEL_GRACE {
                 self.clear();
@@ -353,7 +368,7 @@ impl Presence {
     fn world_info(&mut self, inst: &InstanceState) -> Option<WorldInfo> {
         let wid = inst.location.as_deref().and_then(location::world_id)?;
         let stale = match &self.world {
-            Some((id, info, at)) => id != wid || (info.is_none() && at.elapsed() >= WORLD_RETRY),
+            Some((id, info, at)) => id != wid || (info.is_none() && at.elapsed() >= LOOKUP_RETRY),
             None => true,
         };
         if stale {
@@ -361,6 +376,22 @@ impl Presence {
             self.world = Some((wid.to_string(), fetched.ok().map(|w| WorldInfo::from_api(&w)), Instant::now()));
         }
         self.world.as_ref().and_then(|(_, info, _)| info.clone())
+    }
+
+    /// The instance owner's name, looked up once per owner (and retried if that failed).
+    /// Skipped for private instances that are hidden anyway.
+    fn owner_name(&mut self, inst: &InstanceState, s: &AppSettings) -> Option<String> {
+        let i = inst.location.as_deref().and_then(location::parse)?;
+        let id = i.owner.filter(|_| !(s.discord_hide_private && !i.access.is_joinable()))?;
+        let stale = match &self.owner {
+            Some((o, name, at)) => o != id || (name.is_none() && at.elapsed() >= LOOKUP_RETRY),
+            None => true,
+        };
+        if stale {
+            let name = tauri::async_runtime::block_on(crate::sync::owner_name(&self.app, id));
+            self.owner = Some((id.to_string(), name, Instant::now()));
+        }
+        self.owner.as_ref().and_then(|(_, name, _)| name.clone())
     }
 }
 
@@ -463,7 +494,7 @@ mod tests {
     #[test]
     fn shows_public_instances_in_full() {
         let s = AppSettings { discord_presence: true, discord_join_button: true, ..Default::default() };
-        let a = activity(&instance(&format!("{WRLD}:57893~region(eu)")), Some(&world()), &s).unwrap();
+        let a = activity(&instance(&format!("{WRLD}:57893~region(eu)")), Some(&world()), None, &s).unwrap();
         assert_eq!(a["details"], "The Black Cat");
         assert_eq!(a["state"], "Public · Europe");
         assert_eq!(a["timestamps"]["start"], 1_700_000_000_000i64);
@@ -480,14 +511,23 @@ mod tests {
     fn hides_private_instances() {
         let loc = format!("{WRLD}:57893~private(usr_a)~canRequestInvite~region(eu)");
         let s = AppSettings { discord_presence: true, discord_join_button: true, ..Default::default() };
-        let a = activity(&instance(&loc), Some(&world()), &s).unwrap();
+        let a = activity(&instance(&loc), Some(&world()), Some("Luno"), &s).unwrap();
         assert_eq!(a, json!({ "details": "In a private instance", "timestamps": { "start": 1_700_000_000_000i64 } }));
 
         // Shown when asked to, but there's still nothing to join.
         let s = AppSettings { discord_hide_private: false, ..s };
-        let a = activity(&instance(&loc), Some(&world()), &s).unwrap();
+        let a = activity(&instance(&loc), Some(&world()), None, &s).unwrap();
         assert_eq!((a["details"].as_str(), a["state"].as_str()), (Some("The Black Cat"), Some("Invite+ · Europe")));
         assert!(a.get("buttons").is_none());
+    }
+
+    #[test]
+    fn names_the_instance_owner() {
+        let s = AppSettings { discord_presence: true, ..Default::default() };
+        let state = |loc: &str, owner| activity(&instance(&format!("{WRLD}:{loc}")), Some(&world()), owner, &s).unwrap()["state"].clone();
+        assert_eq!(state("1~hidden(usr_a)~region(eu)", Some("Luno")), "Friends+ · Hosted by Luno · Europe");
+        assert_eq!(state("1~group(grp_a)~groupAccessType(public)", Some("Night Owls")), "Group Public · Night Owls · US West");
+        assert_eq!(state("1~friends(usr_a)", None), "Friends · US West");
     }
 
     #[test]
@@ -496,16 +536,16 @@ mod tests {
         let mut inst = instance(&format!("{WRLD}:1~hidden(usr_a)"));
         inst.world_name = None;
         inst.players.clear();
-        let a = activity(&inst, None, &s).unwrap();
+        let a = activity(&inst, None, None, &s).unwrap();
         assert_eq!((a["details"].as_str(), a["state"].as_str()), (Some("In a world"), Some("Friends+ · US West")));
         assert!(a.get("assets").is_none() && a.get("party").is_none() && a.get("buttons").is_none());
 
         // More people than the world's cap still makes a valid party.
         let mut full = instance(&format!("{WRLD}:1"));
         full.players.extend((0..20).map(|i| Player { user_id: None, display_name: i.to_string(), joined_ts: 0 }));
-        assert_eq!(activity(&full, Some(&world()), &s).unwrap()["party"]["size"], json!([23, 23]));
+        assert_eq!(activity(&full, Some(&world()), None, &s).unwrap()["party"]["size"], json!([23, 23]));
 
-        assert!(activity(&InstanceState::default(), Some(&world()), &s).is_none());
+        assert!(activity(&InstanceState::default(), Some(&world()), None, &s).is_none());
         assert_eq!(text("x"), None);
         assert_eq!(text(&"y".repeat(200)).unwrap().chars().count(), 128);
     }

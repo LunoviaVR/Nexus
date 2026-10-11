@@ -283,6 +283,24 @@ impl Api {
         self.send(Method::GET, "auth/user", &[], None, Some(&basic)).await
     }
 
+    /// Page through a list endpoint 100 at a time (VRChat's page cap), up to `max` items.
+    pub async fn get_all(&self, path: &str, query: &[(&str, String)], max: usize) -> Result<Vec<Value>> {
+        let mut out = Vec::new();
+        let mut offset = 0usize;
+        loop {
+            let mut q = query.to_vec();
+            q.extend([("n", "100".to_string()), ("offset", offset.to_string())]);
+            let items = self.get(path, &q).await?.as_array().cloned().unwrap_or_default();
+            let len = items.len();
+            out.extend(items);
+            offset += len;
+            if len < 100 || offset >= max {
+                break;
+            }
+        }
+        Ok(out)
+    }
+
     /// Page through `/auth/user/friends`.
     pub async fn fetch_friends(&self, offline: bool) -> Result<Vec<Value>> {
         let mut out = Vec::new();

@@ -31,12 +31,13 @@ import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { ago, cn, dateTime, duration, platformLabel, STATUS_LABEL, userImage } from "@/lib/format";
 import { errorText, ipc } from "@/lib/ipc";
-import { parseLocation } from "@/lib/location";
-import { useAvatar, useUser, useWorld } from "@/lib/queries";
+import { parseLocation, sameInstance } from "@/lib/location";
+import { useAvatar, useInstance, useUser, useWorld } from "@/lib/queries";
 import { useNow } from "@/lib/useNow";
 import type { CurrentUser, UserHistory, VrcBadge, VrcGroup, VrcProfile, VrcUser, World } from "@/lib/types";
 import { useAuth } from "@/stores/auth";
 import { useFriends } from "@/stores/friends";
+import { useLive } from "@/stores/live";
 import { byRecent } from "@/lib/friends";
 import { useUi } from "@/stores/ui";
 import { AvatarCard, GRID, WorldCard } from "./Cards";
@@ -47,7 +48,7 @@ import { RefreshButton } from "./RefreshButton";
 import { ImageViewer, type ViewerImage } from "./ImageViewer";
 import { fullSizeUrl } from "@/lib/image";
 import { FeedRow } from "./FeedRow";
-import { actions, InstanceBadge, LocationLabel, RegionLabel, TrustLabel, UserAvatar } from "./people";
+import { actions, InstanceBadge, InstanceOwner, LocationLabel, PlayerCount, RegionLabel, TrustLabel, UserAvatar } from "./people";
 import { Button, Dialog, Empty, Img, Input, SectionTitle, Segmented, Skeleton, Switch, Tip } from "./ui";
 
 const TABS = ["info", "groups", "mutuals", "worlds", "favworlds", "avatars", "activity", "json"] as const;
@@ -590,6 +591,10 @@ function Presence({ u, location, isMe }: { u: VrcUser; location?: string | null;
   const openWorld = useUi((s) => s.openWorld);
   const loc = parseLocation(location);
   const world = useWorld(loc.kind === "instance" ? (loc.worldId ?? null) : null);
+  const inst = useInstance(loc.kind === "instance" && loc.instanceId ? location : null);
+  // Your own instance: the game log's player list is live, VRChat's count lags.
+  const live = useLive((s) => s.instance);
+  const players = isMe && sameInstance(live.location, location) && live.players.length ? live.players.length : (inst.data?.n_users ?? inst.data?.userCount);
   const inWorld = (location ?? "").startsWith("wrld_") || u.state === "online";
 
   if (!inWorld) {
@@ -635,7 +640,9 @@ function Presence({ u, location, isMe }: { u: VrcUser; location?: string | null;
       </button>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 bg-panel-2/40 px-4 py-2.5 text-[13px]">
         <InstanceBadge location={location} />
-        {loc.name && <span className="font-medium">#{loc.name}</span>}
+        {loc.name && <span className="font-medium">#{inst.data?.displayName ?? loc.name}</span>}
+        <PlayerCount n={players} cap={inst.data?.capacity} />
+        <InstanceOwner location={location} ownerId={inst.data?.ownerId} />
         <RegionLabel location={location} />
         {u.$locationAt && <span className="ml-auto text-xs tabular-nums text-subtle">for {duration(now - u.$locationAt)}</span>}
       </div>

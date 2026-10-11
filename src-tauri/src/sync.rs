@@ -93,6 +93,30 @@ pub async fn world(app: &AppHandle, world_id: &str, force: bool) -> Result<Value
     cached(app, "world", world_id, &format!("worlds/{world_id}"), 3_600_000, force).await
 }
 
+/// Display name for an instance owner: a user (you, a friend, or anyone via the API) or a group.
+pub async fn owner_name(app: &AppHandle, owner_id: &str) -> Option<String> {
+    let name = |v: &Value, k: &str| v[k].as_str().filter(|s| !s.is_empty()).map(String::from);
+    if owner_id.starts_with("grp_") {
+        // Same cache entry as the group dialog.
+        let g = cached(app, "group", owner_id, &format!("groups/{owner_id}?includeRoles=true"), 600_000, false).await.ok()?;
+        return name(&g, "name");
+    }
+    if !owner_id.starts_with("usr_") {
+        return None;
+    }
+    let known = {
+        let st = app.state::<AppState>();
+        let s = st.session.read();
+        let me = s.user.as_ref().filter(|u| str_of(u, "id") == owner_id);
+        me.or_else(|| s.friends.get(owner_id)).and_then(|u| name(u, "displayName"))
+    };
+    if known.is_some() {
+        return known;
+    }
+    let u = cached(app, "user", owner_id, &format!("users/{owner_id}"), 600_000, false).await.ok()?;
+    name(&u, "displayName")
+}
+
 pub async fn world_name_for(app: &AppHandle, loc: &str) -> Option<String> {
     let wid = location::world_id(loc)?;
     world(app, wid, false).await.ok().and_then(|w| w["name"].as_str().map(String::from))
@@ -152,11 +176,9 @@ pub fn end_session(app: &AppHandle) {
 
 pub async fn load_favorites(app: &AppHandle) -> Result<()> {
     let st = app.state::<AppState>();
-    let list = st.api.get("favorites", &[("type", "friend".into()), ("n", "300".into())]).await?;
+    let list = st.api.get_all("favorites", &[("type", "friend".into())], 1000).await?;
     let map: HashMap<String, String> = list
-        .as_array()
-        .into_iter()
-        .flatten()
+        .iter()
         .filter_map(|f| Some((f["favoriteId"].as_str()?.to_string(), f["id"].as_str()?.to_string())))
         .collect();
     let ids: Vec<&String> = map.keys().collect();

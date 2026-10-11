@@ -54,6 +54,8 @@ pub struct Instance<'a> {
     pub instance_id: &'a str,
     pub access: Access,
     pub region: &'a str,
+    /// Who opened it: a `usr_` id for friends/invite instances, a `grp_` id for group ones. Public has none.
+    pub owner: Option<&'a str>,
 }
 
 pub fn parse(location: &str) -> Option<Instance<'_>> {
@@ -63,17 +65,19 @@ pub fn parse(location: &str) -> Option<Instance<'_>> {
     }
     let mut access = Access::Public;
     let (mut can_request, mut group, mut group_access, mut region) = (false, false, "", "us");
+    let mut owner = None;
     for tag in instance_id.split('~').skip(1) {
         let (key, value) = match tag.split_once('(') {
             Some((k, v)) => (k, v.strip_suffix(')').unwrap_or(v)),
             None => (tag, ""),
         };
+        let id = Some(value).filter(|v| !v.is_empty());
         match key {
-            "hidden" => access = Access::FriendsPlus,
-            "friends" => access = Access::Friends,
-            "private" => access = Access::Invite,
+            "hidden" => (access, owner) = (Access::FriendsPlus, id),
+            "friends" => (access, owner) = (Access::Friends, id),
+            "private" => (access, owner) = (Access::Invite, id),
             "canRequestInvite" => can_request = true,
-            "group" => group = true,
+            "group" => (group, owner) = (true, id),
             "groupAccessType" => group_access = value,
             "region" if !value.is_empty() => region = value,
             _ => {}
@@ -89,7 +93,7 @@ pub fn parse(location: &str) -> Option<Instance<'_>> {
             _ => Access::Group,
         };
     }
-    Some(Instance { world_id, instance_id, access, region })
+    Some(Instance { world_id, instance_id, access, region, owner })
 }
 
 pub fn region_label(region: &str) -> &str {
@@ -123,6 +127,11 @@ mod tests {
         let i = parse(&loc).unwrap();
         assert_eq!((i.world_id, i.instance_id, i.region), (w, "57893~private(usr_a)~region(use)", "use"));
         assert_eq!(parse(&format!("{w}:1")).unwrap().region, "us");
+        assert_eq!(parse(&format!("{w}:1")).unwrap().owner, None);
+        assert_eq!(i.owner, Some("usr_a"));
+        let owner = |tags: &str| parse(&format!("{w}:12345{tags}")).unwrap().owner.map(String::from);
+        assert_eq!(owner("~hidden(usr_b)~region(eu)").as_deref(), Some("usr_b"));
+        assert_eq!(owner("~group(grp_a)~groupAccessType(public)").as_deref(), Some("grp_a"));
         assert_eq!(parse("private"), None);
         assert_eq!(parse(w), None);
     }

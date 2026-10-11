@@ -855,9 +855,9 @@ pub async fn favorite_groups(app: AppHandle, kind: String) -> Result<Value> {
 
 /// Every favorite of a kind across all lists, with favorite-record ids for removal.
 #[tauri::command]
-pub async fn favorites_of(app: AppHandle, kind: String) -> Result<Value> {
+pub async fn favorites_of(app: AppHandle, kind: String) -> Result<Vec<Value>> {
     favorite_kind(&kind)?;
-    app.state::<AppState>().api.get("favorites", &[("type", kind), ("n", "400".into())]).await
+    app.state::<AppState>().api.get_all("favorites", &[("type", kind)], 1000).await
 }
 
 #[tauri::command]
@@ -895,8 +895,8 @@ pub async fn favorite_remove(app: AppHandle, kind: String, favorite_id: String) 
 
 /// All your avatar favorites (every list), with their favorite-record ids for removal.
 #[tauri::command]
-pub async fn avatar_favorites(app: AppHandle) -> Result<Value> {
-    app.state::<AppState>().api.get("favorites", &[("type", "avatar".into()), ("n", "300".into())]).await
+pub async fn avatar_favorites(app: AppHandle) -> Result<Vec<Value>> {
+    app.state::<AppState>().api.get_all("favorites", &[("type", "avatar".into())], 1000).await
 }
 
 #[tauri::command]

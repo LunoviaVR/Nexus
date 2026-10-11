@@ -1,9 +1,12 @@
-import { Globe, Lock, Plane, Users } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Crown, Globe, Lock, Plane, Users } from "lucide-react";
 import { toast } from "sonner";
 import { ACCESS_LABEL, parseLocation, REGION_LABEL, isJoinable } from "@/lib/location";
 import { cn, presenceColor, STATUS_LABEL, trustRank, userImage } from "@/lib/format";
 import { errorText, ipc } from "@/lib/ipc";
 import { useWorldName } from "@/lib/queries";
+import { useAuth } from "@/stores/auth";
+import { useFriends } from "@/stores/friends";
 import { useUi } from "@/stores/ui";
 import type { VrcUser } from "@/lib/types";
 import { Img, Tip } from "./ui";
@@ -114,6 +117,45 @@ export function RegionLabel({ location }: { location?: string | null }) {
   return (
     <span className="inline-flex items-center gap-1 text-muted">
       <Globe className="size-3" /> {REGION_LABEL[p.region] ?? p.region.toUpperCase()}
+    </span>
+  );
+}
+
+/**
+ * Who opened an instance: the user in its friends/invite tag, or its group. Public instances have no owner.
+ * `ownerId` (from a fetched instance) is the fallback when the location carries no tag.
+ */
+export function InstanceOwner({ location, ownerId }: { location?: string | null; ownerId?: string | null }) {
+  const p = parseLocation(location);
+  const id = p.groupId ?? p.ownerId ?? ownerId ?? undefined;
+  const groupId = id?.startsWith("grp_") ? id : undefined;
+  const userId = id?.startsWith("usr_") ? id : undefined;
+  const me = useAuth((s) => s.user);
+  const friend = useFriends((s) => (userId ? s.byId[userId] : undefined));
+  const known = me && me.id === userId ? me : friend;
+  // Same cache keys as the profile and group dialogs, so opening either is instant.
+  const user = useQuery({ queryKey: ["user", userId], queryFn: () => ipc.user(userId!), enabled: !!userId && !known, staleTime: 5 * 60_000 });
+  const group = useQuery({ queryKey: ["group", groupId], queryFn: () => ipc.group(groupId!), enabled: !!groupId, staleTime: 5 * 60_000 });
+  const openUser = useUi((s) => s.openUser);
+  const openGroup = useUi((s) => s.openGroup);
+  if (!groupId && !userId) return null;
+
+  const name = groupId ? group.data?.name : me && me.id === userId ? "You" : (known ?? user.data)?.displayName;
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1 text-xs text-muted" title={groupId ? "Group instance" : "Instance owner"}>
+      <Crown className="size-3 shrink-0 text-amber-400/80" />
+      {/* A span, not a button: this label often sits inside clickable rows. */}
+      <span
+        role="link"
+        className="truncate hover:text-accent hover:underline cursor-pointer"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (groupId) openGroup(groupId);
+          else openUser(userId!);
+        }}
+      >
+        {name ?? "…"}
+      </span>
     </span>
   );
 }

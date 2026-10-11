@@ -90,7 +90,9 @@ export function FavoriteButton({
   };
 
   const loading = favs.some((f) => f.isLoading);
-  const sections = kinds.filter((k) => options.some((o) => o.kind === k));
+  // Without your favorites we can't tell whether this is already in a list, so don't offer to add it.
+  const failed = favs.find((f) => f.isError);
+  const sections = failed ? [] : kinds.filter((k) => options.some((o) => o.kind === k));
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
@@ -106,6 +108,14 @@ export function FavoriteButton({
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={6} className="z-[80] w-64 rounded-xl border border-line bg-panel p-1.5 shadow-pop outline-none">
+          {failed && (
+            <div className="space-y-2 p-2 text-[13px]">
+              <p className="text-muted">Couldn't load your favorites. {errorText(failed.error)}</p>
+              <Button size="sm" className="w-full" onClick={() => favs.forEach((f) => f.isError && f.refetch())}>
+                Try again
+              </Button>
+            </div>
+          )}
           {sections.map((k) => (
             <div key={k}>
               <div className="px-2 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wider text-subtle">
