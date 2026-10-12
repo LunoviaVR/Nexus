@@ -21,12 +21,14 @@ import {
   Group,
   CircleUserRound,
   Contact,
+  Megaphone,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { cn, STATUS_COLOR, STATUS_LABEL } from "@/lib/format";
 import { errorText, ipc } from "@/lib/ipc";
 import type { Status } from "@/lib/types";
+import { STATUS_PAGE_URL, useVrcStatus, type StatusLevel } from "@/lib/vrcStatus";
 import { useAuth } from "@/stores/auth";
 import { useFriends } from "@/stores/friends";
 import { useLive } from "@/stores/live";
@@ -241,9 +243,57 @@ function StatusPicker() {
   );
 }
 
-export function TopBar() {
-  const { setPalette, rail, toggleRail, go, page } = useUi();
+const LEVEL_LOOK: Record<StatusLevel | "unknown", { dot: string; pill: string }> = {
+  ok: { dot: "bg-st-active shadow-[0_0_8px] shadow-st-active", pill: "text-muted hover:bg-hover hover:text-fg" },
+  maintenance: { dot: "bg-st-join", pill: "bg-st-join/12 text-st-join hover:bg-st-join/20" },
+  minor: { dot: "bg-st-ask animate-pulse", pill: "bg-st-ask/12 text-st-ask hover:bg-st-ask/20" },
+  major: { dot: "bg-st-busy animate-pulse", pill: "bg-st-busy/12 text-st-busy hover:bg-st-busy/20" },
+  critical: { dot: "bg-st-busy animate-pulse shadow-[0_0_8px] shadow-st-busy", pill: "bg-st-busy/15 text-st-busy hover:bg-st-busy/25" },
+  unknown: { dot: "bg-st-offline", pill: "text-subtle hover:bg-hover hover:text-fg" },
+};
+
+/** VRChat's own service status from status.vrchat.com; click to open the page. */
+function ServiceStatus() {
+  const { data, error, isPending } = useVrcStatus();
   const pipeline = useLive((s) => s.pipeline);
+  const level = data?.level ?? "unknown";
+  const label = data?.label ?? (isPending ? "Checking" : "Unknown");
+  const look = LEVEL_LOOK[level];
+  const details = data ? [...data.incidents, ...data.maintenance, ...data.affected] : [];
+
+  return (
+    <Tip
+      side="bottom"
+      label={
+        <div className="max-w-72 space-y-1 py-0.5 leading-snug">
+          <div className="font-semibold">
+            {data ? `VRChat: ${data.description}` : error ? "Couldn't reach status.vrchat.com" : "Checking VRChat's status…"}
+          </div>
+          {details.map((d) => (
+            <div key={d} className="font-normal opacity-80">
+              {d}
+            </div>
+          ))}
+          <div className="font-normal opacity-60">
+            {pipeline ? "Nexus live updates connected" : "Nexus live updates reconnecting…"} · Click for status.vrchat.com
+          </div>
+        </div>
+      }
+    >
+      <button
+        onClick={() => ipc.openExternal(STATUS_PAGE_URL).catch((e) => toast.error(errorText(e)))}
+        aria-label={`VRChat status: ${label}. Open status.vrchat.com`}
+        className={cn("mr-1 flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium transition-colors cursor-pointer", look.pill)}
+      >
+        <span className={cn("size-2 rounded-full", look.dot)} />
+        {label}
+      </button>
+    </Tip>
+  );
+}
+
+export function TopBar() {
+  const { setPalette, setChangelog, rail, toggleRail, go, page } = useUi();
   const unread = useLive((s) => s.unread);
 
   return (
@@ -257,11 +307,15 @@ export function TopBar() {
         <kbd className="rounded border border-line bg-panel-2 px-1.5 text-[11px] font-medium">Ctrl K</kbd>
       </button>
       <div className="ml-auto flex items-center gap-1">
-        <Tip label={pipeline ? "Live updates connected" : "Live updates reconnecting…"}>
-          <span className="mr-2 flex items-center gap-1.5 text-xs text-muted">
-            <span className={cn("size-2 rounded-full", pipeline ? "bg-st-active shadow-[0_0_8px] shadow-st-active" : "bg-st-ask animate-pulse")} />
-            {pipeline ? "Live" : "Connecting"}
-          </span>
+        <ServiceStatus />
+        <Tip label="What's new">
+          <button
+            onClick={() => setChangelog(true)}
+            aria-label="What's new in Nexus"
+            className="inline-flex size-9 items-center justify-center rounded-lg text-muted hover:bg-hover hover:text-fg cursor-pointer"
+          >
+            <Megaphone className="size-[18px]" />
+          </button>
         </Tip>
         <Tip label={unread ? `Notifications · ${unread} new` : "Notifications"}>
           <button

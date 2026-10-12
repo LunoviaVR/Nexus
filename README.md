@@ -96,7 +96,9 @@ It's built with [Tauri 2](https://tauri.app) (a Rust core with a React interface
 ### ⚡ Quality of life
 
 - **Ctrl + K** command palette to jump to any friend, world, group or page.
-- Dark and light themes with an accent colour picker.
+- Dark, **OLED** (true black) and light themes with an accent colour picker.
+- **VRChat's status** in the top bar: **Stable** when everything works, or what's wrong (degraded, an outage, maintenance) the moment status.vrchat.com reports it. Click it to open the status page.
+- **What's new** behind the megaphone in the top bar: release notes for every version, right in the app. After an update, Nexus shows what changed once.
 - Tray icon with a status switcher, close to tray, and start with Windows.
 - Multiple VRChat accounts with quick switching, and two-factor sign-in.
 - CSV export of your feed, game log, worlds and friends.
@@ -151,7 +153,7 @@ Only history from **before** Nexus started recording is imported, so nothing is 
 
 Nexus has no servers and no analytics or telemetry. It talks only to:
 
-- **VRChat**, for everything about your account, friends, worlds, groups and avatars;
+- **VRChat**, for everything about your account, friends, worlds, groups and avatars, and its status page ([status.vrchat.com](https://status.vrchat.com)) once a minute while Nexus is on screen, to show whether VRChat is having problems;
 - **GitHub**, to check for updates;
 - **[avtrDB](https://avtrdb.com)**, only when you use Avatar discover;
 - the **Discord app on your PC**, only if you turn on Discord status. Discord then shows the world you're in on your profile.

@@ -19,7 +19,7 @@ export type Page =
   | "insights"
   | "settings";
 
-export type Theme = "dark" | "light" | "system";
+export type Theme = "dark" | "oled" | "light" | "system";
 
 /** How the friends panel (and the Friends page defaults) are organized. Set in Settings. */
 export interface FriendsLayout {
@@ -52,6 +52,8 @@ interface UiState {
   theme: Theme;
   accentHue: number;
   paletteOpen: boolean;
+  /** The release notes reader, from the megaphone in the top bar. */
+  changelogOpen: boolean;
   friendsLayout: FriendsLayout;
   setFriendsLayout: (patch: Partial<FriendsLayout>) => void;
   instancePrefs: InstancePrefs;
@@ -74,6 +76,7 @@ interface UiState {
   setTheme: (t: Theme) => void;
   setAccent: (h: number) => void;
   setPalette: (open: boolean) => void;
+  setChangelog: (open: boolean) => void;
   openUser: (id: string | null, tab?: string) => void;
   openWorld: (id: string | null, location?: string | null) => void;
   openGroup: (id: string | null) => void;
@@ -91,6 +94,7 @@ export const useUi = create<UiState>()(
       theme: "dark",
       accentHue: 290,
       paletteOpen: false,
+      changelogOpen: false,
       friendsLayout: DEFAULT_FRIENDS_LAYOUT,
       setFriendsLayout: (patch) => set((s) => ({ friendsLayout: { ...s.friendsLayout, ...patch } })),
       instancePrefs: { type: "public", groupId: null },
@@ -111,6 +115,7 @@ export const useUi = create<UiState>()(
       setTheme: (theme) => set({ theme }),
       setAccent: (accentHue) => set({ accentHue }),
       setPalette: (paletteOpen) => set({ paletteOpen }),
+      setChangelog: (changelogOpen) => set({ changelogOpen }),
       openUser: (userId, tab) => set({ userId, userTab: tab ?? null }),
       openWorld: (worldId, worldLocation = null) => set({ worldId, worldLocation }),
       openGroup: (groupId) => set({ groupId }),

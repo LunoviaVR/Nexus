@@ -3,6 +3,7 @@
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { emit } from "@tauri-apps/api/event";
 import type { FeedEntry, GlSession, VrcUser, World } from "./types";
+import pkg from "../../package.json";
 
 const img = (seed: string, w = 256, h = 192) => `https://picsum.photos/seed/${encodeURIComponent(seed)}/${w}/${h}`;
 const now = Date.now();
@@ -570,7 +571,7 @@ export function installMock() {
         case "vrcx_import":
           return new Promise((r) => setTimeout(() => r({ feed: 47569, worlds: 407, events: 24400, friendDates: 28, memos: 0 }), 900));
         case "plugin:app|version":
-          return "1.0.0";
+          return pkg.version;
         case "plugin:updater|check":
           return null;
         default:

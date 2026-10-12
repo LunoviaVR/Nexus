@@ -16,6 +16,7 @@ import { UserDialog } from "@/components/UserDialog";
 import { WorldDialog } from "@/components/WorldDialog";
 import { GroupDialog } from "@/components/GroupDialog";
 import { AvatarDialog } from "@/components/AvatarDialog";
+import { ChangelogDialog, WhatsNewSplash } from "@/components/Changelog";
 import { EditProfileDialog } from "@/components/EditProfileDialog";
 import { errorText, ipc } from "@/lib/ipc";
 import { applyLogin } from "@/lib/session";
@@ -70,6 +71,7 @@ function useTheme() {
     const apply = () => {
       const light = theme === "light" || (theme === "system" && mq.matches);
       document.documentElement.classList.toggle("light", light);
+      document.documentElement.classList.toggle("oled", theme === "oled");
     };
     apply();
     mq.addEventListener("change", apply);
@@ -153,6 +155,8 @@ function Main() {
       <AvatarDialog />
       <EditProfileDialog />
       <CommandPalette />
+      <ChangelogDialog />
+      <WhatsNewSplash />
     </div>
   );
 }
@@ -161,7 +165,7 @@ function Splash() {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4">
       <img src="/logo.svg" alt="" className="size-14 animate-pulse" />
-      <p className="text-[13px] text-muted">Connecting to VRChatâ€¦</p>
+      <p className="text-[13px] text-muted">Connecting to VRChat…</p>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { disable as disableAutostart, enable as enableAutostart, isEnabled as autostartEnabled } from "@tauri-apps/plugin-autostart";
 import { open as pickFolder, save as saveFile } from "@tauri-apps/plugin-dialog";
-import { BellRing, ChevronRight, CircleAlert, CircleCheck, Download, ExternalLink, FolderOpen, LogOut, Monitor, Moon, RefreshCw, RotateCcw, ShieldCheck, Sun, Trash2, Unlock, UserRoundCog } from "lucide-react";
+import { BellRing, ChevronRight, CircleAlert, CircleCheck, Download, ExternalLink, FolderOpen, LogOut, Megaphone, Monitor, Moon, RefreshCw, RotateCcw, ShieldCheck, Sun, Trash2, Unlock, UserRoundCog } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Button, Card, Confirm, Img, Input, PageHeader, Segmented, Switch } from "@/components/ui";
@@ -124,7 +124,7 @@ const SCOPES = [
 ];
 
 export function SettingsPage() {
-  const { theme, setTheme, accentHue, setAccent, friendsLayout, setFriendsLayout, go } = useUi();
+  const { theme, setTheme, accentHue, setAccent, friendsLayout, setFriendsLayout, go, setChangelog } = useUi();
   const watchedCount = useFriends((st) => st.watched.size);
   const user = useAuth((s) => s.user);
   const qc = useQueryClient();
@@ -221,12 +221,13 @@ export function SettingsPage() {
       <PageHeader title="Settings" />
 
       <Section title="Appearance">
-        <Row title="Theme">
+        <Row title="Theme" hint={theme === "oled" ? "True black, for OLED screens." : undefined}>
           <Segmented<Theme>
             value={theme}
             onChange={setTheme}
             options={[
               { value: "dark", label: <span className="inline-flex items-center gap-1.5"><Moon className="size-3.5" /> Dark</span> },
+              { value: "oled", label: <span className="inline-flex items-center gap-1.5"><span className="size-3 rounded-full bg-black ring-1 ring-current/40" /> OLED</span> },
               { value: "light", label: <span className="inline-flex items-center gap-1.5"><Sun className="size-3.5" /> Light</span> },
               { value: "system", label: <span className="inline-flex items-center gap-1.5"><Monitor className="size-3.5" /> System</span> },
             ]}
@@ -516,10 +517,15 @@ export function SettingsPage() {
             </Button>
           )}
         </Row>
-        <Row title="What's new" hint="Release notes for every version are on GitHub.">
-          <Button size="sm" variant="ghost" icon={<ExternalLink className="size-3.5" />} onClick={() => ipc.openExternal(RELEASES_URL)}>
-            Release notes
-          </Button>
+        <Row title="What's new" hint="Release notes for every version, also behind the megaphone in the top bar.">
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="ghost" icon={<ExternalLink className="size-3.5" />} onClick={() => ipc.openExternal(RELEASES_URL)}>
+              GitHub
+            </Button>
+            <Button size="sm" icon={<Megaphone className="size-3.5" />} onClick={() => setChangelog(true)}>
+              Release notes
+            </Button>
+          </div>
         </Row>
       </Section>
 

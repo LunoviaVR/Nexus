@@ -19,6 +19,16 @@
   color-scheme: dark;
 }
 
+:root.oled {
+  /* Dark, on true black: unlit pixels on OLED screens. Surfaces stay just far enough apart to read. */
+  --bg: oklch(0 0 0);
+  --panel: oklch(0.12 0.006 275);
+  --panel-2: oklch(0.155 0.008 275);
+  --hover: oklch(0.2 0.01 275);
+  --line: oklch(0.26 0.012 275 / 0.7);
+  --shadow: 0 10px 40px -12px oklch(0 0 0 / 0.9), 0 0 0 1px oklch(0.26 0.012 275 / 0.5);
+}
+
 :root.light {
   --bg: oklch(0.975 0.004 275);
   --panel: oklch(1 0 0);

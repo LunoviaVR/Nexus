@@ -1,6 +1,6 @@
 import { Command } from "cmdk";
 import * as RDialog from "@radix-ui/react-dialog";
-import { Globe, LogIn, MailPlus, Search, Send, Settings, Sparkles } from "lucide-react";
+import { Globe, LogIn, MailPlus, Megaphone, Search, Send, Settings, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { cn, sortByName, STATUS_COLOR, STATUS_LABEL } from "@/lib/format";
 import { ipc } from "@/lib/ipc";
@@ -31,7 +31,7 @@ const itemCls =
   "flex h-10 cursor-pointer items-center gap-3 rounded-lg px-3 text-[13px] text-muted data-[selected=true]:bg-accent-soft data-[selected=true]:text-fg";
 
 export function CommandPalette() {
-  const { paletteOpen: open, setPalette, go, openUser, search } = useUi();
+  const { paletteOpen: open, setPalette, setChangelog, go, openUser, search } = useUi();
   const byId = useFriends((s) => s.byId);
   const updateUser = useAuth((s) => s.updateUser);
   const myId = useAuth((s) => s.user?.id);
@@ -160,6 +160,9 @@ export function CommandPalette() {
                     {p.page === "settings" ? <Settings className="size-4" /> : <Sparkles className="size-4" />} {p.label}
                   </Command.Item>
                 ))}
+                <Command.Item value="what's new changelog release notes" onSelect={run(() => setChangelog(true))} className={itemCls}>
+                  <Megaphone className="size-4" /> What's new
+                </Command.Item>
               </Command.Group>
             </Command.List>
           </Command>
