@@ -4,6 +4,7 @@ import { fixDeep } from "./text";
 /** Every response passes through `fixDeep` so VRChat's look-alike punctuation displays normally. */
 const invoke = <T>(cmd: string, args?: InvokeArgs) => tauriInvoke<T>(cmd, args).then((r) => fixDeep(r));
 import type {
+  Appearance,
   Account,
   FolderInfo,
   VrchatInstall,
@@ -194,6 +195,8 @@ export const ipc = {
 
   settings: () => invoke<AppSettings>("settings_get"),
   saveSettings: (settings: AppSettings) => invoke<void>("settings_set", { settings }),
+  appearance: () => invoke<Appearance | null>("appearance_get"),
+  setAppearance: (appearance: Appearance) => invoke<void>("appearance_set", { appearance }),
   discordStatus: () => invoke<DiscordStatus>("discord_status"),
   defaultLogDir: () => invoke<string | null>("default_log_dir"),
   vrchatInstall: () => invoke<VrchatInstall>("vrchat_install_get"),

@@ -26,7 +26,7 @@ import { useAuth } from "@/stores/auth";
 import { useFriends } from "@/stores/friends";
 import { useLive } from "@/stores/live";
 import { usePeople } from "@/stores/people";
-import { useUi, type Page } from "@/stores/ui";
+import { isTheme, nearestAccent, useUi, type Page, type Theme } from "@/stores/ui";
 import { Login } from "@/pages/Login";
 import { Home } from "@/pages/Home";
 import { Friends } from "@/pages/Friends";
@@ -80,6 +80,43 @@ function useTheme() {
   useEffect(() => {
     document.documentElement.style.setProperty("--accent-h", String(hue));
   }, [hue]);
+}
+
+/**
+ * Keep the theme and accent color in Nexus's database too. The WebView saves its own storage
+ * lazily, so a change made just before quitting or shutting down could be lost there; the database
+ * saves right away and wins at startup. The WebView copy still paints the first frame.
+ */
+function useSavedAppearance() {
+  useEffect(() => {
+    let live = true;
+    let unsubscribe = () => {};
+    const save = (theme: Theme, accentHue: number) =>
+      ipc.setAppearance({ theme, accentHue }).catch((e) => toast.error(`Couldn't save your theme: ${errorText(e)}`));
+    ipc
+      .appearance()
+      .catch(() => null)
+      .then((saved) => {
+        // StrictMode runs this twice in dev; only the run that's still mounted takes over.
+        if (!live) return;
+        if (saved && isTheme(saved.theme)) {
+          const accentHue = nearestAccent(saved.accentHue);
+          useUi.setState({ theme: saved.theme, accentHue });
+          if (accentHue !== saved.accentHue) save(saved.theme, accentHue);
+        } else {
+          // First run with this: keep what the WebView remembered.
+          const { theme, accentHue } = useUi.getState();
+          save(theme, accentHue);
+        }
+        unsubscribe = useUi.subscribe((s, prev) => {
+          if (s.theme !== prev.theme || s.accentHue !== prev.accentHue) save(s.theme, s.accentHue);
+        });
+      });
+    return () => {
+      live = false;
+      unsubscribe();
+    };
+  }, []);
 }
 
 /** Bridge backend events into the stores. */
@@ -175,6 +212,7 @@ let booted = false;
 export default function App() {
   const phase = useAuth((s) => s.phase);
   useTheme();
+  useSavedAppearance();
   useBackendEvents();
 
   useEffect(() => {

@@ -21,6 +21,31 @@ export type Page =
 
 export type Theme = "dark" | "oled" | "light" | "system";
 
+const THEMES: readonly string[] = ["dark", "oled", "light", "system"] satisfies Theme[];
+export const isTheme = (v: unknown): v is Theme => typeof v === "string" && THEMES.includes(v);
+
+/** Accent colors in Settings, in rainbow order. Hues are OKLCH. */
+const DEFAULT_ACCENT = 290;
+export const ACCENTS = [
+  { name: "Red", hue: 25 },
+  { name: "Orange", hue: 55 },
+  { name: "Yellow", hue: 95 },
+  { name: "Green", hue: 145 },
+  { name: "Blue", hue: 245 },
+  { name: "Indigo", hue: 268 },
+  { name: "Violet", hue: 290 },
+] as const;
+
+/** The offered accent closest to `hue`, so a color from an older version still shows as picked. */
+export function nearestAccent(hue: number): number {
+  if (!Number.isFinite(hue)) return DEFAULT_ACCENT;
+  const dist = (h: number) => {
+    const d = Math.abs(h - hue) % 360;
+    return Math.min(d, 360 - d);
+  };
+  return ACCENTS.reduce<number>((best, a) => (dist(a.hue) < dist(best) ? a.hue : best), ACCENTS[0].hue);
+}
+
 /** How the friends panel (and the Friends page defaults) are organized. Set in Settings. */
 export interface FriendsLayout {
   groupBy: "instance" | "status" | "none";
@@ -92,7 +117,7 @@ export const useUi = create<UiState>()(
       collapsed: false,
       rail: true,
       theme: "dark",
-      accentHue: 290,
+      accentHue: DEFAULT_ACCENT,
       paletteOpen: false,
       changelogOpen: false,
       friendsLayout: DEFAULT_FRIENDS_LAYOUT,
@@ -133,10 +158,16 @@ export const useUi = create<UiState>()(
         friendsLayout: s.friendsLayout,
         instancePrefs: s.instancePrefs,
       }),
-      // Older saved state has no friendsLayout; fill in any missing fields.
+      // Older saved state has no friendsLayout, and may have an accent color that's no longer offered.
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<UiState>;
-        return { ...current, ...p, friendsLayout: { ...DEFAULT_FRIENDS_LAYOUT, ...(p.friendsLayout ?? {}) } };
+        return {
+          ...current,
+          ...p,
+          theme: isTheme(p.theme) ? p.theme : current.theme,
+          accentHue: nearestAccent(p.accentHue ?? current.accentHue),
+          friendsLayout: { ...DEFAULT_FRIENDS_LAYOUT, ...(p.friendsLayout ?? {}) },
+        };
       },
     },
   ),

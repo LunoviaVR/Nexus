@@ -96,7 +96,7 @@ It's built with [Tauri 2](https://tauri.app) (a Rust core with a React interface
 ### ⚡ Quality of life
 
 - **Ctrl + K** command palette to jump to any friend, world, group or page.
-- Dark, **OLED** (true black) and light themes with an accent colour picker.
+- Dark, **OLED** (true black) and light themes, and an accent colour from red through violet. Both are remembered across restarts.
 - **VRChat's status** in the top bar: **Stable** when everything works, or what's wrong (degraded, an outage, maintenance) the moment status.vrchat.com reports it. Click it to open the status page.
 - **What's new** behind the megaphone in the top bar: release notes for every version, right in the app. After an update, Nexus shows what changed once.
 - Tray icon with a status switcher, close to tray, and start with Windows.
@@ -162,12 +162,12 @@ Nexus has no servers and no analytics or telemetry. It talks only to:
 
 | What | Where | Protected by |
 |---|---|---|
-| Your history: feed, game log, encounters, friend log, memos, settings | `%APPDATA%\app.nexus.vrchat\nexus.db` | **SQLCipher** (AES-256) |
+| Your history: feed, game log, encounters, friend log, memos, settings, theme and accent color | `%APPDATA%\app.nexus.vrchat\nexus.db` | **SQLCipher** (AES-256) |
 | Cached VRChat images | `%LOCALAPPDATA%\app.nexus.vrchat\images-enc\` | **AES-256-GCM**, keyed file names |
 | Encryption key | Windows Credential Manager (`nexus-vrchat` / `database-key`) | Your Windows account |
 | VRChat session, and your password only if you tick *Remember password* | Windows Credential Manager (`nexus-vrchat` / your user ID) | Your Windows account |
 | Saved prints and stickers (if you turn it on) | `Pictures\Nexus` or the folder you choose | Plain image files, like VRChat's photos |
-| UI preferences (theme, sidebar, layout) | WebView storage in `%LOCALAPPDATA%\app.nexus.vrchat` | Nothing personal |
+| UI preferences (sidebar, layout, and a copy of your theme so it shows instantly) | WebView storage in `%LOCALAPPDATA%\app.nexus.vrchat` | Nothing personal |
 
 The encryption key is generated randomly on your PC the first time Nexus starts. Without it the database and image cache are unreadable, so other apps and anyone browsing your files only see scrambled data.
 

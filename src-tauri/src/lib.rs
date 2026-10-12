@@ -175,6 +175,8 @@ pub fn run() {
             commands::memo_set,
             commands::settings_get,
             commands::settings_set,
+            commands::appearance_get,
+            commands::appearance_set,
             commands::discord_status,
             commands::default_log_dir,
             commands::vrchat_install_get,

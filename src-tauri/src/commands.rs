@@ -12,7 +12,7 @@ use crate::error::{Error, Result};
 use crate::gamelog::InstanceState;
 use crate::location;
 use crate::session;
-use crate::settings::AppSettings;
+use crate::settings::{AppSettings, Appearance};
 use crate::state::{AppState, PendingLogin};
 use crate::sync::{self, str_of};
 
@@ -1666,6 +1666,17 @@ pub fn settings_set(app: AppHandle, settings: AppSettings) -> Result<()> {
     st.db.kv_set("app_settings", &serde_json::to_string(&settings)?)?;
     *st.settings.write() = settings;
     Ok(())
+}
+
+/// Saved apart from `app_settings`, so saving other settings can never put back an older theme.
+#[tauri::command]
+pub fn appearance_get(app: AppHandle) -> Option<Appearance> {
+    app.state::<AppState>().db.kv_json("appearance")
+}
+
+#[tauri::command]
+pub fn appearance_set(app: AppHandle, appearance: Appearance) -> Result<()> {
+    app.state::<AppState>().db.kv_set("appearance", &serde_json::to_string(&appearance)?)
 }
 
 #[tauri::command]

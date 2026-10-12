@@ -526,6 +526,12 @@ export function installMock() {
         }
         case "settings_get":
           return { notifyOnline: "favorites", notifyOffline: "off", notifyInstanceJoin: "favorites", notifyInvites: true, notifyInviteRequests: true, notifyFriendRequests: true, notifyNewFriends: true, notifyUnfriends: true, notifyBoops: true, minimizeToTray: true, logDir: null, savePrints: true, saveStickers: true, ugcDir: null, discordPresence: true, discordHidePrivate: true, discordJoinButton: false };
+        // Stands in for the database: survives clearing the UI's own saved state.
+        case "appearance_get":
+          return JSON.parse(localStorage.getItem("mock-appearance") ?? "null");
+        case "appearance_set":
+          localStorage.setItem("mock-appearance", JSON.stringify(a.appearance));
+          return null;
         case "discord_status":
           return { state: "showing", details: worlds[0].name };
         case "vrchat_install_get":

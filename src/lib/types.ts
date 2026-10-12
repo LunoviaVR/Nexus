@@ -491,6 +491,12 @@ export interface Insights {
 
 export type Scope = "off" | "favorites" | "all";
 
+/** Theme and accent color, also kept in Nexus's database. `theme` is checked before use. */
+export interface Appearance {
+  theme: string;
+  accentHue: number;
+}
+
 export interface AppSettings {
   notifyOnline: Scope;
   notifyOffline: Scope;

@@ -28,6 +28,13 @@ describe("whatsNew", () => {
     expect(versions(whatsNew(null, "1.0.10", true, ALL))).toEqual(["1.0.10"]);
   });
 
+  it("counts 1.1.0 as newer than 1.0.10", () => {
+    expect(compareVersions("1.1.0", "1.0.10")).toBe(1);
+    const all = ["1.1.0", "1.0.10", "1.0.9"].map(rel);
+    expect(versions(whatsNew("1.0.10", "1.1.0", true, all))).toEqual(["1.1.0"]);
+    expect(versions(whatsNew("1.0.9", "1.1.0", true, all))).toEqual(["1.1.0", "1.0.10"]);
+  });
+
   it("shows every version since the last one run", () => {
     expect(versions(whatsNew("1.0.8", "1.0.11", true, ALL))).toEqual(["1.0.11", "1.0.10", "1.0.9"]);
     expect(versions(whatsNew("1.0.9", "1.0.10", true, ALL))).toEqual(["1.0.10"]);

@@ -4,7 +4,7 @@ import { open as pickFolder, save as saveFile } from "@tauri-apps/plugin-dialog"
 import { BellRing, ChevronRight, CircleAlert, CircleCheck, Download, ExternalLink, FolderOpen, LogOut, Megaphone, Monitor, Moon, RefreshCw, RotateCcw, ShieldCheck, Sun, Trash2, Unlock, UserRoundCog } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { Button, Card, Confirm, Img, Input, PageHeader, Segmented, Switch } from "@/components/ui";
+import { Button, Card, Confirm, Img, Input, PageHeader, Segmented, Switch, Tip } from "@/components/ui";
 import { cn } from "@/lib/format";
 import { errorText, ipc } from "@/lib/ipc";
 import { applyLogin, clearSession } from "@/lib/session";
@@ -12,9 +12,8 @@ import { checkForUpdate, installUpdate, RELEASES_URL } from "@/lib/updates";
 import type { AppSettings, DiscordStatus, Scope } from "@/lib/types";
 import { useAuth } from "@/stores/auth";
 import { useFriends } from "@/stores/friends";
-import { useUi, type Theme } from "@/stores/ui";
+import { ACCENTS, useUi, type Theme } from "@/stores/ui";
 
-const HUES = [290, 260, 220, 190, 160, 130, 60, 25, 350];
 
 function Row({ title, hint, children }: { title: string; hint?: ReactNode; children: ReactNode }) {
   return (
@@ -235,14 +234,16 @@ export function SettingsPage() {
         </Row>
         <Row title="Accent color">
           <div className="flex gap-1.5">
-            {HUES.map((h) => (
-              <button
-                key={h}
-                aria-label={`Accent hue ${h}`}
-                onClick={() => setAccent(h)}
-                className={cn("size-6 rounded-full ring-offset-2 ring-offset-panel cursor-pointer", accentHue === h && "ring-2 ring-fg")}
-                style={{ background: `oklch(0.68 0.17 ${h})` }}
-              />
+            {ACCENTS.map(({ name, hue }) => (
+              <Tip key={hue} label={name}>
+                <button
+                  aria-label={name}
+                  aria-pressed={accentHue === hue}
+                  onClick={() => setAccent(hue)}
+                  className={cn("size-6 rounded-full ring-offset-2 ring-offset-panel cursor-pointer", accentHue === hue && "ring-2 ring-fg")}
+                  style={{ background: `oklch(0.68 0.17 ${hue})` }}
+                />
+              </Tip>
             ))}
           </div>
         </Row>

@@ -8,6 +8,15 @@ pub enum Scope {
     All,
 }
 
+/// Theme and accent color from Settings → Appearance. The interface owns what the values mean;
+/// they're kept here so they survive however Nexus was closed.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Appearance {
+    pub theme: String,
+    pub accent_hue: u16,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AppSettings {
