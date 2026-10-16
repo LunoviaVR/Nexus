@@ -16,10 +16,12 @@ use crate::sync::{self, str_of};
 const STABLE_AFTER: Duration = Duration::from_secs(30);
 /// Missed events are caught up with a full friend refresh, at most this often.
 const RESYNC_EVERY: Duration = Duration::from_secs(60);
+/// The first wait before reconnecting; it doubles on each quick drop, up to a minute.
+const FIRST_BACKOFF: u64 = 5;
 
 pub fn start(app: AppHandle) -> tauri::async_runtime::JoinHandle<()> {
     tauri::async_runtime::spawn(async move {
-        let mut backoff = 2u64;
+        let mut backoff = FIRST_BACKOFF;
         let mut first = true;
         let mut last_resync: Option<Instant> = None;
         loop {
@@ -38,21 +40,26 @@ pub fn start(app: AppHandle) -> tauri::async_runtime::JoinHandle<()> {
                         // We may have missed events while disconnected; resync.
                         last_resync = Some(Instant::now());
                         let a = app.clone();
-                        tauri::async_runtime::spawn(async move {
+                        tauri::async_runtime::spawn(crate::api::background(async move {
                             let _ = sync::refresh_friends(&a).await;
-                        });
+                        }));
                     }
                     first = false;
+                    // VRChat sometimes sends the same event twice in a row; once is enough.
+                    let mut last = String::new();
                     while let Some(msg) = ws.next().await {
                         match msg {
-                            Ok(Message::Text(text)) => handle(&app, &text).await,
+                            Ok(Message::Text(text)) if *text != *last => {
+                                handle(&app, &text).await;
+                                last = text.to_string();
+                            }
                             Ok(Message::Close(_)) | Err(_) => break,
                             _ => {}
                         }
                     }
                     let _ = app.emit("pipeline:status", false);
                     if connected.elapsed() >= STABLE_AFTER {
-                        backoff = 2;
+                        backoff = FIRST_BACKOFF;
                     }
                 }
                 Err(WsError::Http(resp)) if resp.status() == 401 => {

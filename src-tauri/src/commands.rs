@@ -682,13 +682,40 @@ pub async fn group_cancel_request(app: AppHandle, group_id: String) -> Result<()
     Ok(())
 }
 
+/// The last group-instance list (and whose it was), and until when VRChat asked us to stop polling it.
+type GroupInstances = (Option<(String, Value)>, Option<std::time::Instant>);
+static GROUP_INSTANCES: std::sync::LazyLock<parking_lot::Mutex<GroupInstances>> = std::sync::LazyLock::new(Default::default);
+/// How long the group-instance list is left alone after VRChat rate limits it.
+const GROUP_INSTANCES_HOLD: std::time::Duration = std::time::Duration::from_secs(120);
+
 /// Open instances across every group you're in, in one call.
 #[tauri::command]
 pub async fn my_group_instances(app: AppHandle) -> Result<Value> {
     let st = app.state::<AppState>();
     let id = st.me_id()?;
-    let res = st.api.get(&format!("users/{id}/instances/groups"), &[]).await?;
-    Ok(res.get("instances").cloned().unwrap_or(res))
+    let held = |last: &Option<(String, Value)>| {
+        last.as_ref().filter(|(owner, _)| *owner == id).map(|(_, v)| v.clone()).unwrap_or_else(|| json!([]))
+    };
+    {
+        let g = GROUP_INSTANCES.lock();
+        if g.1.is_some_and(|until| until > std::time::Instant::now()) {
+            return Ok(held(&g.0));
+        }
+    }
+    match st.api.get(&format!("users/{id}/instances/groups"), &[]).await {
+        Ok(res) => {
+            let list = res.get("instances").cloned().unwrap_or(res);
+            *GROUP_INSTANCES.lock() = (Some((id.clone(), list.clone())), None);
+            Ok(list)
+        }
+        // Back off and show what we had; the next poll tries again once the hold is over.
+        Err(e) if e.status() == Some(429) => {
+            let mut g = GROUP_INSTANCES.lock();
+            g.1 = Some(std::time::Instant::now() + GROUP_INSTANCES_HOLD);
+            Ok(held(&g.0))
+        }
+        Err(e) => Err(e),
+    }
 }
 
 /// Rate-limited "refresh now" for the Group Instances page (the page reloads after this succeeds).

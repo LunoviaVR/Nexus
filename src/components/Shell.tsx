@@ -69,7 +69,7 @@ export function Sidebar() {
     queryFn: ipc.myGroupInstances,
     enabled: !!meId,
     staleTime: 60_000,
-    refetchInterval: 2 * 60_000,
+    refetchInterval: 5 * 60_000,
   });
 
   const item = (p: Page, label: string, icon: ReactNode, badge?: number) => {

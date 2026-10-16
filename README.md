@@ -108,7 +108,7 @@ It's built with [Tauri 2](https://tauri.app) (a Rust core with a React interface
 
 ### 🐢 Gentle on VRChat
 
-Nexus paces every request it makes so it doesn't get your account rate limited. What you click (invites, boops, edits) always goes first, then whatever you're looking at, and background work only uses what's left. If VRChat asks it to slow down, everything waits as long as VRChat asks, and you see how long instead of an error.
+Nexus paces every request it makes so it doesn't get your account rate limited. What you click (invites, boops, edits) always goes first, then whatever you're looking at, and background work only uses what's left. If VRChat asks it to slow down, everything waits as long as VRChat asks, and you see how long instead of an error. Identical requests made at the same moment share one call. Things VRChat says don't exist or are private aren't asked about again for 15 minutes. Once your session expires, Nexus stops sending requests until it has signed you back in.
 
 ## 📸 Screenshots
 

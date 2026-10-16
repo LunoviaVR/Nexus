@@ -186,7 +186,8 @@ pub async fn world_name_quick(app: &AppHandle, loc: &str) -> Option<String> {
         }
     }
     let a = app.clone();
-    let lookup = tauri::async_runtime::spawn(async move { world(&a, &wid, false).await.ok() });
+    // A spawned task doesn't inherit the caller's lane; this is upkeep either way.
+    let lookup = tauri::async_runtime::spawn(crate::api::background(async move { world(&a, &wid, false).await.ok() }));
     let w = tokio::time::timeout(Duration::from_secs(3), lookup).await.ok()?.ok()??;
     w["name"].as_str().map(String::from)
 }
@@ -227,6 +228,35 @@ pub async fn start_session(app: AppHandle, user: Value) {
         s.bio_sweep = Some(sweep);
     }
     let _ = app.emit("session:ready", ());
+}
+
+/// A request came back 401. Check whether the session really ended; if so, sign back in with
+/// the saved password, or end the session so nothing keeps knocking on VRChat's door.
+pub async fn recover_session(app: AppHandle) {
+    let st = app.state::<AppState>();
+    let Ok(id) = st.me_id() else {
+        st.api.revive();
+        return;
+    };
+    match st.api.get("auth/user", &[]).await {
+        // Still signed in (a successful `auth/user` lets requests through again).
+        Ok(u) if u["id"].is_string() => return,
+        // Offline or rate limited: can't tell, so carry on and check again on the next 401.
+        Err(e) if !matches!(e.status(), Some(401 | 403)) => {
+            st.api.revive();
+            return;
+        }
+        _ => {}
+    }
+    if let Some(saved) = crate::session::load(&id) {
+        if let (Some(u), Some(p)) = (saved.username, saved.password) {
+            if let Ok(crate::commands::LoginResult::Ok { .. }) = crate::commands::auth_login(app.clone(), u, p, true).await {
+                return;
+            }
+        }
+    }
+    end_session(&app);
+    let _ = app.emit("session:expired", ());
 }
 
 pub fn end_session(app: &AppHandle) {

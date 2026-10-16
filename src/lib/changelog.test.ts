@@ -35,6 +35,12 @@ describe("whatsNew", () => {
     expect(versions(whatsNew("1.0.9", "1.1.0", true, all))).toEqual(["1.1.0", "1.0.10"]);
   });
 
+  it("counts 1.1.1 as newer than 1.1.0", () => {
+    expect(compareVersions("1.1.1", "1.1.0")).toBe(1);
+    const all = ["1.1.1", "1.1.0", "1.0.10"].map(rel);
+    expect(versions(whatsNew("1.1.0", "1.1.1", true, all))).toEqual(["1.1.1"]);
+  });
+
   it("shows every version since the last one run", () => {
     expect(versions(whatsNew("1.0.8", "1.0.11", true, ALL))).toEqual(["1.0.11", "1.0.10", "1.0.9"]);
     expect(versions(whatsNew("1.0.9", "1.0.10", true, ALL))).toEqual(["1.0.10"]);

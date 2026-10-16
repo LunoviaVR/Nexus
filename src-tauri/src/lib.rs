@@ -53,6 +53,10 @@ pub fn run() {
             let db = db::Db::open(&dir.join("nexus.db"), &vault::database_key(&master))?;
             images::forget_plain_cache(app.handle());
             app.manage(AppState::new(db));
+            let handle = app.handle().clone();
+            app.state::<AppState>().api.set_on_expired(move || {
+                tauri::async_runtime::spawn(sync::recover_session(handle.clone()));
+            });
             tray::create(app.handle())?;
             gamelog::spawn(app.handle().clone());
             ugc::spawn(app.handle().clone());

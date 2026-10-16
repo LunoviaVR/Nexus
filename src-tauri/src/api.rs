@@ -12,9 +12,16 @@
 //! A request that would have to wait longer than its lane allows fails with a plain message
 //! instead of hanging. Pictures on the API host have a scheduler of their own, so a page full
 //! of thumbnails never holds up the app itself.
+//!
+//! On top of the pacing, requests that can't do any good aren't sent at all:
+//! - identical reads asked for at the same moment share one request;
+//! - a read VRChat answered with "not found" or "forbidden" isn't asked again for a while;
+//! - once the session has expired nothing else goes out until it's restored.
 
 use std::collections::{HashMap, VecDeque};
 use std::future::Future;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use base64::Engine;
@@ -103,6 +110,14 @@ const IMAGE_PACE: Pace = Pace {
 
 /// How long the slower pace lasts after a rate limit lifts.
 const SLOW_FOR: Duration = Duration::from_secs(5 * 60);
+
+/// How long a read that came back 403/404 is answered from memory instead of asked again.
+const FAILED_FOR: Duration = Duration::from_secs(15 * 60);
+
+/// VRChat won't page `/auth/user/friends` past this offset.
+const FRIENDS_MAX_OFFSET: usize = 7_500;
+
+const SESSION_EXPIRED: &str = "Your VRChat session expired. Please sign in again.";
 
 /// Why a request can't go out yet.
 #[derive(Debug, PartialEq)]
@@ -298,11 +313,53 @@ impl Scheduler {
     }
 }
 
+/// A finished read, in a form every caller sharing it can have a copy of.
+type SharedResult = std::result::Result<Value, (Option<u16>, String)>;
+
+/// The path a read is remembered under: no leading slash, no query.
+fn failed_key(path: &str) -> &str {
+    let path = path.trim_start_matches('/');
+    path.split_once('?').map_or(path, |(p, _)| p)
+}
+
+/// Reads that are worth not repeating: things that don't exist or that you can't see.
+/// Sign-in endpoints are always asked fresh.
+fn should_remember(status: u16, path: &str) -> bool {
+    matches!(status, 403 | 404) && !failed_key(path).starts_with("auth")
+}
+
+/// Identical reads share a request only within the same lane, so a page never waits behind upkeep.
+fn dedup_key(lane: Lane, path: &str, query: &[(&str, String)]) -> String {
+    let mut q: Vec<String> = query.iter().map(|(k, v)| format!("{k}={v}")).collect();
+    q.sort();
+    format!("{}|{}|{}", lane as u8, path.trim_start_matches('/'), q.join("&"))
+}
+
+/// A 401 here means the session cookie is no longer accepted. Sign-in checks handle their own.
+fn is_session_loss(path: &str, basic: bool) -> bool {
+    let key = failed_key(path);
+    !basic && key != "auth/user" && !key.starts_with("auth/twofactorauth")
+}
+
+/// Requests that may still go out once the session has expired: the ones that restore it.
+fn allowed_while_expired(path: &str, basic: bool) -> bool {
+    let key = failed_key(path);
+    basic || key == "auth/user" || key.starts_with("auth/twofactorauth")
+}
+
 pub struct Api {
     http: reqwest::Client,
     cookies: Mutex<HashMap<String, String>>,
     sched: Scheduler,
     images: Scheduler,
+    /// Reads in progress, shared by everyone asking for the same thing.
+    inflight: Mutex<HashMap<String, Arc<tokio::sync::OnceCell<SharedResult>>>>,
+    /// Reads that came back 403/404: when, and what VRChat said.
+    failed: Mutex<HashMap<String, (Instant, u16, String)>>,
+    /// Set by the first 401 and cleared when the session is restored.
+    expired: AtomicBool,
+    /// Called once when the session is found to have expired.
+    on_expired: OnceLock<Box<dyn Fn() + Send + Sync>>,
 }
 
 impl Api {
@@ -317,7 +374,48 @@ impl Api {
             cookies: Mutex::new(HashMap::new()),
             sched: Scheduler::new(API_PACE),
             images: Scheduler::new(IMAGE_PACE),
+            inflight: Mutex::new(HashMap::new()),
+            failed: Mutex::new(HashMap::new()),
+            expired: AtomicBool::new(false),
+            on_expired: OnceLock::new(),
         }
+    }
+
+    /// What to do when a request reveals the session has expired (only the first one counts).
+    pub fn set_on_expired(&self, f: impl Fn() + Send + Sync + 'static) {
+        let _ = self.on_expired.set(Box::new(f));
+    }
+
+    /// Let requests go out again after the session was found expired.
+    pub fn revive(&self) {
+        self.expired.store(false, Ordering::SeqCst);
+    }
+
+    fn session_lost(&self) {
+        if !self.expired.swap(true, Ordering::SeqCst) {
+            if let Some(f) = self.on_expired.get() {
+                f();
+            }
+        }
+    }
+
+    fn recent_failure(&self, path: &str) -> Option<(u16, String)> {
+        let mut failed = self.failed.lock();
+        let key = failed_key(path);
+        match failed.get(key) {
+            Some((at, status, message)) if at.elapsed() < FAILED_FOR => Some((*status, message.clone())),
+            Some(_) => {
+                failed.remove(key);
+                None
+            }
+            None => None,
+        }
+    }
+
+    fn remember_failure(&self, path: &str, status: u16, message: &str) {
+        let mut failed = self.failed.lock();
+        failed.retain(|_, (at, _, _)| at.elapsed() < FAILED_FOR);
+        failed.insert(failed_key(path).to_string(), (Instant::now(), status, message.to_string()));
     }
 
     pub fn cookies(&self) -> HashMap<String, String> {
@@ -326,10 +424,13 @@ impl Api {
 
     pub fn set_cookies(&self, cookies: HashMap<String, String>) {
         *self.cookies.lock() = cookies;
+        self.revive();
     }
 
     pub fn clear_cookies(&self) {
         self.cookies.lock().clear();
+        self.failed.lock().clear();
+        self.revive();
     }
 
     pub fn auth_token(&self) -> Option<String> {
@@ -377,6 +478,14 @@ impl Api {
         let lane = lane_for(&method);
         let deadline = Instant::now() + lane.patience();
         let read = method == Method::GET;
+        if self.expired.load(Ordering::SeqCst) && !allowed_while_expired(path, basic.is_some()) {
+            return Err(Error::Api { status: 401, message: SESSION_EXPIRED.into() });
+        }
+        if read && basic.is_none() {
+            if let Some((status, message)) = self.recent_failure(path) {
+                return Err(Error::Api { status, message });
+            }
+        }
         let mut limited = 0u32;
         let mut retried = false;
         loop {
@@ -433,14 +542,46 @@ impl Api {
                     .and_then(Value::as_str)
                     .map(|m| m.trim_matches('"').to_string())
                     .unwrap_or_else(|| format!("Request failed ({status})"));
-                return Err(Error::Api { status: status.as_u16(), message });
+                let code = status.as_u16();
+                if code == 401 && is_session_loss(path, basic.is_some()) {
+                    self.session_lost();
+                } else if read && basic.is_none() && should_remember(code, path) {
+                    self.remember_failure(path, code, &message);
+                }
+                return Err(Error::Api { status: code, message });
+            }
+            if failed_key(path) == "auth/user" {
+                self.revive();
+            }
+            if !read {
+                // Joining, accepting or unblocking can make a 403/404 answer go stale.
+                self.failed.lock().clear();
             }
             return Ok(json);
         }
     }
 
+    /// A read. Asking for something that's already on its way waits for that request instead
+    /// of sending another one.
     pub async fn get(&self, path: &str, query: &[(&str, String)]) -> Result<Value> {
-        self.send(Method::GET, path, query, None, None).await
+        let key = dedup_key(lane_for(&Method::GET), path, query);
+        let cell = self.inflight.lock().entry(key.clone()).or_default().clone();
+        let out = cell
+            .get_or_init(|| async {
+                self.send(Method::GET, path, query, None, None).await.map_err(|e| (e.status(), e.to_string()))
+            })
+            .await
+            .clone();
+        {
+            let mut inflight = self.inflight.lock();
+            if inflight.get(&key).is_some_and(|c| Arc::ptr_eq(c, &cell)) {
+                inflight.remove(&key);
+            }
+        }
+        out.map_err(|(status, message)| match status {
+            Some(status) => Error::Api { status, message },
+            None => Error::Other(message),
+        })
     }
 
     pub async fn post(&self, path: &str, body: &Value) -> Result<Value> {
@@ -463,6 +604,9 @@ impl Api {
         bytes: Vec<u8>,
         fields: &[(&str, String)],
     ) -> Result<Value> {
+        if self.expired.load(Ordering::SeqCst) {
+            return Err(Error::Api { status: 401, message: SESSION_EXPIRED.into() });
+        }
         self.sched.acquire(Lane::Action, Instant::now() + Lane::Action.patience()).await?;
         let part = reqwest::multipart::Part::bytes(bytes)
             .file_name("image.png")
@@ -489,8 +633,12 @@ impl Api {
                 .and_then(Value::as_str)
                 .map(|m| m.trim_matches('"').to_string())
                 .unwrap_or_else(|| format!("Upload failed ({status})"));
+            if status == StatusCode::UNAUTHORIZED {
+                self.session_lost();
+            }
             return Err(Error::Api { status: status.as_u16(), message });
         }
+        self.failed.lock().clear();
         Ok(json)
     }
 
@@ -572,7 +720,7 @@ impl Api {
             let items = page.as_array().cloned().unwrap_or_default();
             let len = items.len();
             out.extend(items);
-            if len < 100 || offset > 10_000 {
+            if len < 100 || offset + 100 > FRIENDS_MAX_OFFSET {
                 break;
             }
             offset += 100;
@@ -697,5 +845,88 @@ mod rate_limit_tests {
         assert_eq!(s.strikes, 0);
         assert!(s.slow(after + Duration::from_secs(60)));
         assert!(!s.slow(after + Duration::from_secs(4) + SLOW_FOR + MS));
+    }
+}
+
+#[cfg(test)]
+mod request_tests {
+    use super::*;
+    use std::sync::atomic::AtomicUsize;
+
+    #[test]
+    fn remembers_missing_and_forbidden_reads_but_not_sign_in() {
+        assert!(should_remember(404, "worlds/wrld_1"));
+        assert!(should_remember(403, "/groups/grp_1?includeRoles=true"));
+        assert!(!should_remember(500, "worlds/wrld_1"));
+        assert!(!should_remember(429, "worlds/wrld_1"));
+        assert!(!should_remember(404, "auth/user/notifications"));
+        assert_eq!(failed_key("/groups/grp_1?includeRoles=true"), "groups/grp_1");
+    }
+
+    #[test]
+    fn query_order_does_not_split_shared_reads() {
+        let a = dedup_key(Lane::Normal, "/users", &[("n", "10".into()), ("search", "x".into())]);
+        let b = dedup_key(Lane::Normal, "users", &[("search", "x".into()), ("n", "10".into())]);
+        assert_eq!(a, b);
+        assert_ne!(a, dedup_key(Lane::Background, "users", &[("n", "10".into()), ("search", "x".into())]));
+        assert_ne!(a, dedup_key(Lane::Normal, "users", &[("n", "20".into()), ("search", "x".into())]));
+    }
+
+    #[test]
+    fn a_remembered_failure_expires_and_a_write_or_sign_out_forgets_it() {
+        let api = Api::new();
+        api.remember_failure("worlds/wrld_1", 404, "World not found");
+        assert_eq!(api.recent_failure("/worlds/wrld_1"), Some((404, "World not found".into())));
+        assert_eq!(api.recent_failure("worlds/wrld_2"), None);
+
+        let old = Instant::now().checked_sub(FAILED_FOR + Duration::from_secs(1)).unwrap();
+        api.failed.lock().insert("worlds/wrld_3".into(), (old, 404, "gone".into()));
+        assert_eq!(api.recent_failure("worlds/wrld_3"), None);
+        assert!(!api.failed.lock().contains_key("worlds/wrld_3"));
+
+        api.clear_cookies();
+        assert_eq!(api.recent_failure("worlds/wrld_1"), None);
+    }
+
+    #[test]
+    fn only_api_401s_count_as_a_lost_session() {
+        assert!(is_session_loss("users/usr_1", false));
+        assert!(is_session_loss("auth/user/friends", false));
+        assert!(!is_session_loss("auth/user", false));
+        assert!(!is_session_loss("auth/twofactorauth/totp/verify", false));
+        assert!(!is_session_loss("auth/user", true));
+        assert!(allowed_while_expired("auth/user", false));
+        assert!(allowed_while_expired("anything", true));
+        assert!(!allowed_while_expired("users/usr_1", false));
+    }
+
+    #[test]
+    fn a_lost_session_is_reported_once_until_restored() {
+        let api = Api::new();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let c = calls.clone();
+        api.set_on_expired(move || {
+            c.fetch_add(1, Ordering::SeqCst);
+        });
+        api.session_lost();
+        api.session_lost();
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        api.set_cookies(HashMap::new());
+        api.session_lost();
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn nothing_is_sent_for_a_remembered_failure_or_an_expired_session() {
+        let api = Api::new();
+        api.remember_failure("worlds/wrld_1", 404, "World not found");
+        let e = api.get("worlds/wrld_1", &[]).await.unwrap_err();
+        assert_eq!((e.status(), e.to_string()), (Some(404), "World not found".to_string()));
+
+        api.session_lost();
+        let e = api.get("users/usr_1", &[]).await.unwrap_err();
+        assert_eq!((e.status(), e.to_string()), (Some(401), SESSION_EXPIRED.to_string()));
+        let e = api.post("invite/usr_1", &Value::Null).await.unwrap_err();
+        assert_eq!(e.status(), Some(401));
     }
 }
