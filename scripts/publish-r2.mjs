@@ -18,6 +18,7 @@ const PUBLIC_BASE = "https://downloads.gxthgirls.tech";
 const GITHUB_DOWNLOAD = "https://github.com/LunoviaVR/Nexus/releases/download";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const wranglerBin = join(root, "node_modules", "wrangler", "bin", "wrangler.js");
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
 const notesIdx = args.indexOf("--notes");
@@ -71,13 +72,14 @@ const uploads = [
 ];
 
 for (const u of uploads) {
-  const cmd = ["wrangler", "r2", "object", "put", `${BUCKET}/${u.key}`, "--remote", "--file", u.file, "--content-type", u.type, "--cache-control", u.cache];
+  const cmd = ["r2", "object", "put", `${BUCKET}/${u.key}`, "--remote", "--file", u.file, "--content-type", u.type, "--cache-control", u.cache];
   if (dryRun) {
-    console.log(`[dry-run] npx ${cmd.map((c) => (/\s/.test(c) ? `"${c}"` : c)).join(" ")}`);
+    console.log(`[dry-run] npx wrangler ${cmd.map((c) => (/\s/.test(c) ? `"${c}"` : c)).join(" ")}`);
     continue;
   }
   console.log(`Uploading ${u.key}`);
-  const res = spawnSync("npx", cmd, { cwd: root, stdio: "inherit", shell: process.platform === "win32" });
+  // Run wrangler's JS entry with node directly: no shell, so arguments with spaces stay intact on Windows.
+  const res = spawnSync(process.execPath, [wranglerBin, ...cmd], { cwd: root, stdio: "inherit" });
   if (res.status !== 0) fail(`upload of ${u.key} failed`);
 }
 
