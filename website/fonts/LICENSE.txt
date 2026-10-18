@@ -1,0 +1,4 @@
+Fonts in this folder are licensed under the SIL Open Font License 1.1 (https://openfontlicense.org):
+- jetbrains-mono.woff2 JetBrains Mono, Copyright The JetBrains Mono Project Authors
+- inter.woff2          Inter, Copyright The Inter Project Authors
+Files from the fontsource npm packages.

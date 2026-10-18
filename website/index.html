@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nexus · Your VRChat friends, live</title>
+  <meta name="description" content="Nexus is a free VRChat companion for Windows. See where your friends are the moment it changes, join them in one click, and keep a private, encrypted history of every world and every encounter." />
+  <meta name="theme-color" content="#0a0817" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="preload" href="/fonts/inter.woff2" as="font" type="font/woff2" crossorigin />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Nexus · Your VRChat friends, live" />
+  <meta property="og:description" content="See where your friends are right now and join them in one click. Free, private, about 6 MB." />
+  <meta property="og:image" content="/og.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="/main.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <!-- Ambient background -->
+  <div class="aurora" aria-hidden="true">
+    <span class="orb orb-a"></span>
+    <span class="orb orb-b"></span>
+    <span class="orb orb-c"></span>
+    <span class="grain"></span>
+  </div>
+
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="#top" aria-label="Nexus, back to top">
+        <img src="/favicon.svg" width="30" height="30" alt="" />
+        <span>Nexus</span>
+      </a>
+      <nav class="nav-links" id="nav-links" aria-label="Sections">
+        <a href="#features">Features</a>
+        <a href="#tour">Tour</a>
+        <a href="#privacy">Privacy</a>
+        <a href="#install">Install</a>
+        <a href="https://github.com/LunoviaVR/Nexus" rel="noopener">GitHub</a>
+      </nav>
+      <a class="btn btn-primary btn-sm nav-cta" href="https://github.com/LunoviaVR/Nexus/releases/latest" data-download>
+        <span>Download</span>
+      </a>
+      <button class="menu" aria-expanded="false" aria-controls="nav-links" aria-label="Open menu"><span></span><span></span></button>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- Hero -->
+    <section class="hero" id="top">
+      <div class="hero-copy">
+        <p class="pill reveal"><span class="pill-dot"></span><span data-version>Latest release</span> · Free &amp; open source</p>
+        <h1 class="reveal" data-delay="1">Your VRChat friends,<br /><span class="grad-text">live on your desktop.</span></h1>
+        <p class="lede reveal" data-delay="2">Nexus is a fast, modern companion for Windows. See where every friend is the moment it changes, join them in one click, and keep a private history of every world and every encounter.</p>
+        <div class="cta reveal" data-delay="3">
+          <a class="btn btn-primary btn-lg" href="https://github.com/LunoviaVR/Nexus/releases/latest" data-download>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5.5 10.5 4.5v7H3zm0 13 7.5 1v-7H3zm8.5 1.1L21 21V12.5h-9.5zm0-15.2v7.1H21V3z" fill="currentColor"/></svg>
+            Download for Windows
+          </a>
+          <a class="btn btn-ghost btn-lg" href="#tour">
+            See it in action
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14m0 0-6-6m6 6 6-6"/></svg>
+          </a>
+        </div>
+        <ul class="trust reveal" data-delay="4">
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>Windows 10 &amp; 11</li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>About 6 MB</li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>No servers, no tracking</li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>GPL-3.0</li>
+        </ul>
+      </div>
+
+      <div class="hero-stage reveal" data-delay="2">
+        <div class="stage-glow" aria-hidden="true"></div>
+        <figure class="device" data-tilt>
+          <div class="device-bar" aria-hidden="true"><i></i><i></i><i></i><span>Nexus</span></div>
+          <img src="/assets/screens/home.png" width="2160" height="1350" alt="Nexus home: who's online, your current instance and recent friend activity" fetchpriority="high" />
+        </figure>
+        <!-- Floating live cards -->
+        <div class="float float-a" aria-hidden="true">
+          <span class="avatar av-1"></span>
+          <span class="float-text"><b>Aurora</b><small>joined The Black Cat</small></span>
+          <span class="chip chip-join">Join</span>
+        </div>
+        <div class="float float-b" aria-hidden="true">
+          <span class="status-dot"></span>
+          <span class="float-text"><b>Nova</b><small>came online · just now</small></span>
+        </div>
+        <div class="float float-c" aria-hidden="true">
+          <span class="float-text"><small>Friends online</small><b class="count" data-count="23">0</b></span>
+          <span class="spark"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Marquee -->
+    <div class="marquee" aria-hidden="true">
+      <div class="marquee-track">
+        <span>Live friends list</span><i></i><span>One-click Join</span><i></i><span>Game Log</span><i></i><span>Group owner tools</span><i></i><span>Insights</span><i></i><span>Discord status</span><i></i><span>Encrypted history</span><i></i><span>Signed updates</span><i></i><span>VRCX import</span><i></i>
+        <span>Live friends list</span><i></i><span>One-click Join</span><i></i><span>Game Log</span><i></i><span>Group owner tools</span><i></i><span>Insights</span><i></i><span>Discord status</span><i></i><span>Encrypted history</span><i></i><span>Signed updates</span><i></i><span>VRCX import</span><i></i>
+      </div>
+    </div>
+
+    <!-- Features bento -->
+    <section class="section" id="features">
+      <div class="wrap">
+        <header class="head reveal">
+          <h2>Everything you'd open the VRChat website for.<br /><span class="grad-text">And a lot it can't do.</span></h2>
+          <p>Nexus runs next to VRChat. It listens to VRChat's live connection for friend updates and reads VRChat's own log files, so it knows which worlds you visit and who you meet.</p>
+        </header>
+
+        <div class="bento">
+          <article class="tile tile-wide reveal">
+            <div class="tile-art art-friends" aria-hidden="true">
+              <div class="mini-row"><span class="avatar av-1"></span><span class="bar w1"></span><span class="dot d-join"></span></div>
+              <div class="mini-row"><span class="avatar av-2"></span><span class="bar w2"></span><span class="dot d-on"></span></div>
+              <div class="mini-row"><span class="avatar av-3"></span><span class="bar w3"></span><span class="dot d-ask"></span></div>
+              <div class="mini-row"><span class="avatar av-4"></span><span class="bar w2"></span><span class="dot d-busy"></span></div>
+            </div>
+            <h3>Live friends list</h3>
+            <p>Status and location changes the moment they happen. Friends are grouped by the instance they're in, favourites on top. Join, Invite or Request invite from any page.</p>
+          </article>
+
+          <article class="tile reveal" data-delay="1">
+            <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-4 0-8 2-8 5v2h16v-2c0-3-4-5-8-5Z"/></svg></div>
+            <h3>Rich profiles</h3>
+            <p>Time together, encounters, mutuals, what they've worn, and a private memo. Mute, hide, block or unfriend in one click.</p>
+          </article>
+
+          <article class="tile reveal" data-delay="2">
+            <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v2H4zm0 6h16v2H4zm0 6h10v2H4z"/></svg></div>
+            <h3>Feed &amp; Game Log</h3>
+            <p>A searchable history of every change, and every world visit with who was there and for how long. Works even when VRChat's API doesn't.</p>
+          </article>
+
+          <article class="tile tile-tall reveal" data-delay="1">
+            <div class="tile-art art-insights" aria-hidden="true">
+              <div class="heat">
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+              </div>
+            </div>
+            <h3>Insights</h3>
+            <p>Hours played per day, a when-you-play heatmap, your top worlds and the friends you spend the most time with.</p>
+          </article>
+
+          <article class="tile reveal" data-delay="2">
+            <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2 2 7v2h20V7zM4 11v7h3v-7zm6.5 0v7h3v-7zM17 11v7h3v-7zM2 20h20v2H2z"/></svg></div>
+            <h3>Group owner tools</h3>
+            <p>Announcements, open and close instances, join requests, roles, kicks and bans. Edit the icon, banner and rules.</p>
+          </article>
+
+          <article class="tile reveal" data-delay="3">
+            <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 22a2.5 2.5 0 0 0 2.5-2.5h-5A2.5 2.5 0 0 0 12 22Zm7-6V11a7 7 0 0 0-5.5-6.8V3a1.5 1.5 0 0 0-3 0v1.2A7 7 0 0 0 5 11v5l-2 2v1h18v-1Z"/></svg></div>
+            <h3>Notifications</h3>
+            <p>Invites, friend requests and boops, with Accept, Join and Boop back. Windows alerts for exactly what you care about.</p>
+          </article>
+
+          <article class="tile tile-wide tile-glass reveal" data-delay="2">
+            <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M19.3 5.3A17 17 0 0 0 15 4l-.5 1a15.6 15.6 0 0 0-5 0L9 4a17 17 0 0 0-4.3 1.3A17.7 17.7 0 0 0 1.6 17.2 17 17 0 0 0 6.8 20l1.1-1.8a11 11 0 0 1-1.7-.8l.4-.3a12.2 12.2 0 0 0 10.8 0l.4.3a11 11 0 0 1-1.7.8l1.1 1.8a17 17 0 0 0 5.2-2.8 17.6 17.6 0 0 0-3.1-11.9ZM8.7 14.8a2 2 0 1 1 1.8-2 1.9 1.9 0 0 1-1.8 2Zm6.6 0a2 2 0 1 1 1.8-2 1.9 1.9 0 0 1-1.8 2Z"/></svg></div>
+            <h3>Discord status, worlds, avatars &amp; more</h3>
+            <p>Show the world you're in on Discord (off until you turn it on). Browse worlds and instances, switch avatars, manage your inventory, Ctrl + K to jump anywhere, dark, OLED and light themes, multiple accounts, CSV export.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tour -->
+    <section class="section tour" id="tour">
+      <div class="wrap">
+        <header class="head reveal">
+          <h2>Take the <span class="grad-text">tour.</span></h2>
+          <p>Real screens from Nexus's built-in demo account. Names and pictures are made up.</p>
+        </header>
+        <div class="tour-grid reveal" data-delay="1">
+          <div class="tour-tabs" role="tablist" aria-label="Screens">
+            <button role="tab" aria-selected="true" aria-controls="tour-panel" data-shot="/assets/screens/friends.png" data-alt="Friends page with favourites, friends in game and on the web, and their locations"><b>Friends</b><span>Live status and location, grouped and searchable</span></button>
+            <button role="tab" aria-selected="false" aria-controls="tour-panel" data-shot="/assets/screens/profile.png" data-alt="A profile with its banner, a Voice muted badge and the More menu open"><b>Profiles</b><span>Time together, where they are right now</span></button>
+            <button role="tab" aria-selected="false" aria-controls="tour-panel" data-shot="/assets/screens/game-log.png" data-alt="Game Log session with its player list and timeline"><b>Game Log</b><span>Who was there, for how long, and what happened</span></button>
+            <button role="tab" aria-selected="false" aria-controls="tour-panel" data-shot="/assets/screens/players.png" data-alt="Players in the current instance with pictures and trust ranks, friends first"><b>Players</b><span>Everyone in your instance, live</span></button>
+            <button role="tab" aria-selected="false" aria-controls="tour-panel" data-shot="/assets/screens/groups.png" data-alt="A group you own with Owner tools, join requests and the member list"><b>Groups</b><span>Owner tools, join requests, roles and members</span></button>
+            <button role="tab" aria-selected="false" aria-controls="tour-panel" data-shot="/assets/screens/insights.png" data-alt="Insights with hours per day and a when-you-play heatmap"><b>Insights</b><span>Hours played, when you play, top worlds and friends</span></button>
+            <button role="tab" aria-selected="false" aria-controls="tour-panel" data-shot="/assets/screens/notifications.png" data-alt="Notifications filtered by type with Join, Boop back and Accept"><b>Notifications</b><span>Invites, friend requests and boops</span></button>
+            <button role="tab" aria-selected="false" aria-controls="tour-panel" data-shot="/assets/screens/settings.png" data-alt="Settings for the VRChat install and links, Discord status and saving prints and stickers"><b>Settings</b><span>VRChat install, Discord status, prints</span></button>
+          </div>
+          <figure class="device tour-device" id="tour-panel" role="tabpanel">
+            <div class="device-bar" aria-hidden="true"><i></i><i></i><i></i><span data-tour-title>Friends</span></div>
+            <img data-tour-img src="/assets/screens/friends.png" width="2160" height="1350" loading="lazy" alt="Friends page with favourites, friends in game and on the web, and their locations" />
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <!-- Privacy -->
+    <section class="section" id="privacy">
+      <div class="wrap privacy">
+        <div class="privacy-copy reveal">
+          <h2>Nothing leaves <span class="grad-text">your PC.</span></h2>
+          <p>Nexus has no servers of its own. Your feed, game log, memos and stats are stored encrypted on your computer. It talks to VRChat, and to nothing else unless you turn it on.</p>
+          <ul class="checks">
+            <li><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg></span>No accounts, no analytics, no cloud</li>
+            <li><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg></span>Encrypted local history</li>
+            <li><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg></span>Integrations off until you enable them</li>
+            <li><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg></span>Open source, every line readable</li>
+          </ul>
+        </div>
+        <div class="privacy-cards">
+          <div class="glass reveal" data-delay="1">
+            <div class="shield" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/><path d="m8.5 12 2.5 2.5 4.5-5" class="tick"/></svg></div>
+            <h3>Gentle on VRChat</h3>
+            <p>Every request is paced so your account isn't rate limited. What you click goes first, then what you're looking at, and background work uses what's left.</p>
+          </div>
+          <div class="glass reveal" data-delay="2">
+            <div class="shield" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0-5-5m5 5 5-5M5 21h14"/></svg></div>
+            <h3>Signed updates</h3>
+            <p>Nexus checks GitHub for new releases and verifies each one against its built-in public key. Anything that doesn't match is refused.</p>
+          </div>
+          <div class="glass reveal" data-delay="3">
+            <div class="shield" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 7h11l-3-3m3 3-3 3M17 17H6l3 3m-3-3 3-3"/></svg></div>
+            <h3>Moving from VRCX</h3>
+            <p><b>Settings → Data → Import from VRCX</b> brings over your feed, game log, “friends since” dates and memos. Only history from before Nexus started recording is imported, so nothing is doubled.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Install -->
+    <section class="section" id="install">
+      <div class="wrap">
+        <header class="head reveal">
+          <h2>Up and running <span class="grad-text">in a minute.</span></h2>
+        </header>
+        <ol class="steps">
+          <li class="reveal"><span class="step-n">1</span><h3>Download</h3><p><code data-asset-name>Nexus_x.y.z_x64-setup.exe</code> from the latest release.</p></li>
+          <li class="reveal" data-delay="1"><span class="step-n">2</span><h3>Run it</h3><p>It installs for your user only. No admin rights needed.</p></li>
+          <li class="reveal" data-delay="2"><span class="step-n">3</span><h3>Sign in</h3><p>With your VRChat account. Two-factor authentication is supported.</p></li>
+        </ol>
+        <div class="note reveal" data-delay="2">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 20h20L12 3Zm0 6v5m0 3v.5"/></svg>
+          <p><b>“Windows protected your PC”?</b> The installer isn't signed with a paid certificate yet, so SmartScreen may warn the first time. Click <b>More info</b>, then <b>Run anyway</b>. Updates are still cryptographically signed and checked by Nexus itself.</p>
+        </div>
+        <p class="req reveal">Requires Windows 10 or 11 (64-bit) with WebView2, built into Windows 11 and installed automatically on Windows 10.</p>
+      </div>
+    </section>
+
+    <!-- Final CTA -->
+    <section class="final">
+      <div class="final-card reveal">
+        <div class="final-glow" aria-hidden="true"></div>
+        <img src="/favicon.svg" width="72" height="72" alt="" />
+        <h2>Ready to meet <span class="grad-text">Nexus?</span></h2>
+        <p>Free, open source, about 6 MB. Your friends are already online.</p>
+        <div class="cta">
+          <a class="btn btn-primary btn-lg" href="https://github.com/LunoviaVR/Nexus/releases/latest" data-download>Download for Windows</a>
+          <a class="btn btn-ghost btn-lg" href="https://github.com/LunoviaVR/Nexus/releases" rel="noopener">What's new</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap foot-inner">
+      <div class="brand"><img src="/favicon.svg" width="24" height="24" alt="" /><span>Nexus</span></div>
+      <dl class="meta">
+        <div><dt>Version</dt><dd data-version-plain>latest</dd></div>
+        <div><dt>Released</dt><dd data-released>on GitHub</dd></div>
+        <div><dt>Licence</dt><dd>GPL-3.0</dd></div>
+      </dl>
+      <nav class="foot-links" aria-label="Project links">
+        <a href="https://github.com/LunoviaVR/Nexus" rel="noopener">GitHub</a>
+        <a href="https://github.com/LunoviaVR/Nexus/releases" rel="noopener">Releases</a>
+        <a href="https://github.com/LunoviaVR/Nexus/issues" rel="noopener">Report an issue</a>
+        <a href="https://github.com/LunoviaVR/Nexus/blob/main/LICENSE" rel="noopener">Licence</a>
+      </nav>
+      <p class="disclaimer">Nexus is not affiliated with or endorsed by VRChat Inc. Screenshots use demo data.</p>
+    </div>
+  </footer>
+</body>
+</html>
