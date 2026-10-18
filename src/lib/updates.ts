@@ -35,7 +35,7 @@ export async function installUpdate() {
   }
 }
 
-/** Ask GitHub for a newer release. Shows a sticky toast once per new version. */
+/** Ask the update server (R2, then GitHub) for a newer release. Shows a sticky toast once per new version. */
 export async function checkForUpdate(opts: { quiet?: boolean } = {}): Promise<UpdateInfo | null> {
   const current = await getVersion().catch(() => "");
   let update: Update | null;

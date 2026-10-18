@@ -494,7 +494,7 @@ export function SettingsPage() {
           title={update.data?.available ? `Nexus ${update.data.available.version} is available` : "Nexus is up to date"}
           hint={
             update.data
-              ? `You're on ${update.data.current}. Nexus checks GitHub for new releases at launch and every 30 minutes.`
+              ? `You're on ${update.data.current}. Nexus checks for new releases at launch and every 30 minutes.`
               : "Checking…"
           }
         >

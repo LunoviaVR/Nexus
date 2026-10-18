@@ -1,25 +1,25 @@
 // Nexus landing page: latest release, nav, hero tilt, counters, tour tabs, reveal on scroll.
 (() => {
-  const REPO = "LunoviaVR/Nexus";
+  const MANIFEST = "https://downloads.gxthgirls.tech/nexus/latest.json";
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   document.documentElement.classList.add("js");
 
-  /* Latest release: point every Download at the installer; fall back to the releases page. */
-  fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: { Accept: "application/vnd.github+json" } })
+  /* Latest release: point every Download at the installer on R2; fall back to the GitHub releases page. */
+  fetch(MANIFEST, { cache: "no-cache" })
     .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
     .then((release) => {
-      const asset = (release.assets || []).find((a) => /_x64-setup\.exe$/i.test(a.name));
-      if (asset) {
-        document.querySelectorAll("[data-download]").forEach((a) => (a.href = asset.browser_download_url));
-        document.querySelectorAll("[data-asset-name]").forEach((el) => (el.textContent = asset.name));
+      const url = release.platforms?.["windows-x86_64"]?.url;
+      if (url) {
+        document.querySelectorAll("[data-download]").forEach((a) => (a.href = url));
+        document.querySelectorAll("[data-asset-name]").forEach((el) => (el.textContent = decodeURIComponent(url.split("/").pop())));
       }
-      if (release.tag_name) {
-        const v = release.tag_name.replace(/^v?/, "v");
+      if (release.version) {
+        const v = release.version.replace(/^v?/, "v");
         document.querySelectorAll("[data-version]").forEach((el) => (el.textContent = `${v} is out`));
         document.querySelectorAll("[data-version-plain]").forEach((el) => (el.textContent = v));
       }
-      if (release.published_at) {
-        const label = new Date(release.published_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+      if (release.pub_date) {
+        const label = new Date(release.pub_date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
         document.querySelectorAll("[data-released]").forEach((el) => (el.textContent = label));
       }
     })

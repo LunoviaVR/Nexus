@@ -104,7 +104,7 @@ It's built with [Tauri 2](https://tauri.app) (a Rust core with a React interface
 - CSV export of your feed, game log, worlds and friends.
 - Finds your VRChat install on its own (Steam or the Meta app), so **Join** starts VRChat even when Windows' `vrchat://` links are broken, and repairs those links in one click.
 - Change VRChat's photo folder from Nexus.
-- **Signed automatic updates** from GitHub.
+- **Signed automatic updates**.
 
 ### 🐢 Gentle on VRChat
 
@@ -137,7 +137,7 @@ Nexus paces every request it makes so it doesn't get your account rate limited. 
 
 ### Updating
 
-Nexus checks GitHub for a new release when it starts and every 30 minutes, then offers it in a notification: click **Install & restart**. You can also check in **Settings → Updates**. Every update is signed, and Nexus refuses anything that doesn't match its built-in public key.
+Nexus checks for a new release when it starts and every 30 minutes, then offers it in a notification: click **Install & restart**. You can also check in **Settings → Updates**. Every update is signed, and Nexus refuses anything that doesn't match its built-in public key.
 
 ## 🔁 Moving from VRCX
 
@@ -154,7 +154,7 @@ Only history from **before** Nexus started recording is imported, so nothing is 
 Nexus has no servers and no analytics or telemetry. It talks only to:
 
 - **VRChat**, for everything about your account, friends, worlds, groups and avatars, and its status page ([status.vrchat.com](https://status.vrchat.com)) once a minute while Nexus is on screen, to show whether VRChat is having problems;
-- **GitHub**, to check for updates;
+- **downloads.gxthgirls.tech** (Cloudflare R2), to check for and download updates, with **GitHub** as a fallback;
 - **[avtrDB](https://avtrdb.com)**, only when you use Avatar discover;
 - the **Discord app on your PC**, only if you turn on Discord status. Discord then shows the world you're in on your profile.
 
@@ -257,7 +257,14 @@ Releases are built and published by GitHub Actions ([`.github/workflows/release.
    git tag v1.2.3
    git push origin main --tags
    ```
-4. The workflow tests, builds, signs and creates a **draft** release with the installer and `latest.json`. Review it and click **Publish**. Installed copies pick it up within 30 minutes.
+4. The workflow tests, builds, signs and creates a **draft** release with the installer and `latest.json`. Review it and click **Publish**.
+5. Publish the same build to Cloudflare R2, which installed copies check first:
+   ```bash
+   npm run release:r2 -- --notes "One-line summary for the update toast"
+   ```
+   The script verifies the signature and uploads `nexus/vX.Y.Z/Nexus_X.Y.Z_x64-setup.exe`, its `.sig` and, last, `nexus/latest.json` to the `app-releases` bucket (served at `https://downloads.gxthgirls.tech`). It also writes `latest.github.json`. If you built locally rather than in CI, attach that file to the GitHub release as `latest.json` so the GitHub fallback serves GitHub URLs. Add `--dry-run` to preview without uploading. Installed copies pick the update up within 30 minutes.
+
+**One-time R2 setup:** create the `app-releases` bucket, attach the custom domain `downloads.gxthgirls.tech`, add a CORS rule allowing `GET`/`HEAD` (the website reads `latest.json`), and authenticate wrangler with `npx wrangler login` (or `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID`).
 
 > ⚠️ Losing the private key means existing installs can no longer verify updates. Back it up somewhere safe.
 
