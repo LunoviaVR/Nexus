@@ -4,26 +4,38 @@
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   document.documentElement.classList.add("js");
 
-  /* Latest release: point every Download at the installer on R2; fall back to the GitHub releases page. */
+  /* Latest release: Nexus's own update server on R2 first, the GitHub release as the backup.
+     Points every Download at the installer and fills in the version and date; the static links stay if both fail. */
+  const applyRelease = ({ version, url, published }) => {
+    if (url) {
+      document.querySelectorAll("[data-download]").forEach((a) => (a.href = url));
+      document.querySelectorAll("[data-asset-name]").forEach((el) => (el.textContent = decodeURIComponent(url.split("/").pop())));
+    }
+    if (version) {
+      const v = version.replace(/^v?/, "v");
+      document.querySelectorAll("[data-version]").forEach((el) => (el.textContent = `${v} is out`));
+      document.querySelectorAll("[data-version-plain]").forEach((el) => (el.textContent = v));
+    }
+    if (published) {
+      const label = new Date(published).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+      document.querySelectorAll("[data-released]").forEach((el) => (el.textContent = label));
+    }
+  };
+  const fromGitHub = () =>
+    fetch("https://api.github.com/repos/LunoviaVR/Nexus/releases/latest", { headers: { Accept: "application/vnd.github+json" } })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((release) => {
+        const asset = (release.assets || []).find((a) => /_x64-setup\.exe$/i.test(a.name));
+        applyRelease({ version: release.tag_name, url: asset && asset.browser_download_url, published: release.published_at });
+      });
   fetch(MANIFEST, { cache: "no-cache" })
     .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
     .then((release) => {
       const url = release.platforms?.["windows-x86_64"]?.url;
-      if (url) {
-        document.querySelectorAll("[data-download]").forEach((a) => (a.href = url));
-        document.querySelectorAll("[data-asset-name]").forEach((el) => (el.textContent = decodeURIComponent(url.split("/").pop())));
-      }
-      if (release.version) {
-        const v = release.version.replace(/^v?/, "v");
-        document.querySelectorAll("[data-version]").forEach((el) => (el.textContent = `${v} is out`));
-        document.querySelectorAll("[data-version-plain]").forEach((el) => (el.textContent = v));
-      }
-      if (release.pub_date) {
-        const label = new Date(release.pub_date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-        document.querySelectorAll("[data-released]").forEach((el) => (el.textContent = label));
-      }
+      if (!url) return Promise.reject("no windows build in manifest");
+      applyRelease({ version: release.version, url, published: release.pub_date });
     })
-    .catch(() => {});
+    .catch(() => fromGitHub().catch(() => {}));
 
   /* Nav */
   const nav = document.querySelector(".nav");
