@@ -1,0 +1,44 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "D:/GitHub/Nexus/brag-output-2026-10-19-232120/composition/index.html"
+        ],
+        "createdAt": "2026-10-20T06:33:39.797Z",
+        "reason": "Claude: video composition reproduces the Nexus site's own button/icon glows from website/styles.css"
+      },
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "files": [
+          "D:/GitHub/Nexus/brag-output-2026-10-19-232120/composition/index.html"
+        ],
+        "createdAt": "2026-10-20T06:40:05.086Z",
+        "reason": "Claude: Inter is the Nexus site's own typeface (website/styles.css @font-face); the video reuses the brand font"
+      },
+      {
+        "rule": "ai-color-palette",
+        "value": "*",
+        "files": [
+          "D:/GitHub/Nexus/brag-output-2026-10-19-232120/composition/index.html"
+        ],
+        "createdAt": "2026-10-20T06:40:05.258Z",
+        "reason": "Claude: indigo #6b70ee to cyan #1da6da is the Nexus brand accent sampled from the app icon (website/styles.css :root); the video reuses it"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "D:/GitHub/Nexus/brag-output-2026-10-19-232120/composition/index.html"
+        ],
+        "createdAt": "2026-10-20T06:40:05.616Z",
+        "reason": "Claude: the aurora orbs reproduce the Nexus site's own .aurora/.orb background from website/styles.css"
+      }
+    ]
+  }
+}

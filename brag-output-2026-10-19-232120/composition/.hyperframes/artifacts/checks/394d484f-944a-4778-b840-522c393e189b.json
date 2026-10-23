@@ -1,0 +1,677 @@
+{
+  "ok": true,
+  "strict": false,
+  "browserSkipped": false,
+  "lint": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 8,
+    "infoCount": 0,
+    "findings": [
+      {
+        "code": "duplicate_media_discovery_risk",
+        "severity": "warning",
+        "message": "Detected 2 matching img entries with the same source/start/duration.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "D:\\GitHub\\Nexus\\brag-output-2026-10-19-232120\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Avoid duplicated media nodes that can be discovered twice during compilation."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<section id=\"s1\"> is a timeline element that contains nested <div id=\"s1in\">. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#s1",
+        "dataAttributes": {},
+        "sourceFile": "D:\\GitHub\\Nexus\\brag-output-2026-10-19-232120\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <section id=\"s1\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<section id=\"s2\"> is a timeline element that contains nested <div id=\"s2in\">. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#s2",
+        "dataAttributes": {},
+        "sourceFile": "D:\\GitHub\\Nexus\\brag-output-2026-10-19-232120\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <section id=\"s2\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<section id=\"s3\"> is a timeline element that contains nested <div id=\"s3in\">. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#s3",
+        "dataAttributes": {},
+        "sourceFile": "D:\\GitHub\\Nexus\\brag-output-2026-10-19-232120\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <section id=\"s3\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<section id=\"s4\"> is a timeline element that contains nested <div id=\"s4in\">. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#s4",
+        "dataAttributes": {},
+        "sourceFile": "D:\\GitHub\\Nexus\\brag-output-2026-10-19-232120\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <section id=\"s4\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<section id=\"s5\"> is a timeline element that contains nested <div id=\"s5in\">. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#s5",
+        "dataAttributes": {},
+        "sourceFile": "D:\\GitHub\\Nexus\\brag-output-2026-10-19-232120\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <section id=\"s5\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<section id=\"s6\"> is a timeline element that contains nested <div id=\"s6in\">. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#s6",
+        "dataAttributes": {},
+        "sourceFile": "D:\\GitHub\\Nexus\\brag-output-2026-10-19-232120\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <section id=\"s6\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<section id=\"s7\"> is a timeline element that contains nested <div id=\"s7in\">. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#s7",
+        "dataAttributes": {},
+        "sourceFile": "D:\\GitHub\\Nexus\\brag-output-2026-10-19-232120\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <section id=\"s7\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      }
+    ],
+    "filesScanned": 1
+  },
+  "runtime": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": []
+  },
+  "layout": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 10,
+    "findings": [
+      {
+        "code": "canvas_overflow",
+        "severity": "info",
+        "time": 13.6,
+        "selector": "#c2 > div:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(1)",
+        "message": "Text extends outside the composition canvas.",
+        "rect": {
+          "left": 450.39,
+          "top": 2401.5,
+          "right": 629.59,
+          "bottom": 2427.5,
+          "width": 179.2,
+          "height": 26
+        },
+        "containerSelector": "#root",
+        "text": "Nexus · Groups",
+        "fixHint": "Move the text inward, reduce its size, or mark intentional off-canvas animation with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1080,
+          "bottom": 1920,
+          "width": 1080,
+          "height": 1920
+        },
+        "overflow": {
+          "bottom": 507.5
+        },
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 450.39,
+          "y": 2401.5,
+          "width": 179.2,
+          "height": 26
+        },
+        "firstSeen": 13.6,
+        "lastSeen": 18.2,
+        "occurrences": 3,
+        "heldMs": 0,
+        "times": [
+          13.6,
+          16.6,
+          18.2
+        ]
+      },
+      {
+        "code": "canvas_overflow",
+        "severity": "info",
+        "time": 13.6,
+        "selector": "#c3 > div:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(1)",
+        "message": "Text extends outside the composition canvas.",
+        "rect": {
+          "left": 437.59,
+          "top": 2401.5,
+          "right": 642.41,
+          "bottom": 2427.5,
+          "width": 204.82,
+          "height": 26
+        },
+        "containerSelector": "#root",
+        "text": "Nexus · Insights",
+        "fixHint": "Move the text inward, reduce its size, or mark intentional off-canvas animation with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1080,
+          "bottom": 1920,
+          "width": 1080,
+          "height": 1920
+        },
+        "overflow": {
+          "bottom": 507.5
+        },
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 437.59,
+          "y": 2401.5,
+          "width": 204.82,
+          "height": 26
+        },
+        "firstSeen": 13.6,
+        "lastSeen": 18.2,
+        "occurrences": 3,
+        "heldMs": 0,
+        "times": [
+          13.6,
+          15.1,
+          18.2
+        ]
+      },
+      {
+        "code": "canvas_overflow",
+        "severity": "info",
+        "time": 13.6,
+        "selector": "#c4 > div:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(1)",
+        "message": "Text extends outside the composition canvas.",
+        "rect": {
+          "left": 405.59,
+          "top": 2401.5,
+          "right": 674.41,
+          "bottom": 2427.5,
+          "width": 268.82,
+          "height": 26
+        },
+        "containerSelector": "#root",
+        "text": "Nexus · Notifications",
+        "fixHint": "Move the text inward, reduce its size, or mark intentional off-canvas animation with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1080,
+          "bottom": 1920,
+          "width": 1080,
+          "height": 1920
+        },
+        "overflow": {
+          "bottom": 507.5
+        },
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 405.59,
+          "y": 2401.5,
+          "width": 268.82,
+          "height": 26
+        },
+        "firstSeen": 13.6,
+        "lastSeen": 16.6,
+        "occurrences": 3,
+        "heldMs": 0,
+        "times": [
+          13.6,
+          15.1,
+          16.6
+        ]
+      },
+      {
+        "code": "canvas_overflow",
+        "severity": "info",
+        "time": 15.1,
+        "selector": "#c1 > h2:nth-of-type(1)",
+        "message": "Text extends outside the composition canvas.",
+        "rect": {
+          "left": 382.38,
+          "top": -1703,
+          "right": 697.63,
+          "bottom": -1592,
+          "width": 315.25,
+          "height": 111
+        },
+        "containerSelector": "#root",
+        "text": "Players",
+        "fixHint": "Move the text inward, reduce its size, or mark intentional off-canvas animation with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1080,
+          "bottom": 1920,
+          "width": 1080,
+          "height": 1920
+        },
+        "overflow": {
+          "top": 1703
+        },
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 382.38,
+          "y": -1703,
+          "width": 315.25,
+          "height": 111
+        },
+        "firstSeen": 15.1,
+        "lastSeen": 18.2,
+        "occurrences": 3,
+        "heldMs": 0,
+        "times": [
+          15.1,
+          16.6,
+          18.2
+        ]
+      },
+      {
+        "code": "canvas_overflow",
+        "severity": "info",
+        "time": 15.1,
+        "selector": "#c1 > p:nth-of-type(1)",
+        "message": "Text extends outside the composition canvas.",
+        "rect": {
+          "left": 257.27,
+          "top": -1574,
+          "right": 822.73,
+          "bottom": -1528,
+          "width": 565.46,
+          "height": 46
+        },
+        "containerSelector": "#root",
+        "text": "Everyone in your instance, live.",
+        "fixHint": "Move the text inward, reduce its size, or mark intentional off-canvas animation with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1080,
+          "bottom": 1920,
+          "width": 1080,
+          "height": 1920
+        },
+        "overflow": {
+          "top": 1574
+        },
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 257.27,
+          "y": -1574,
+          "width": 565.46,
+          "height": 46
+        },
+        "firstSeen": 15.1,
+        "lastSeen": 18.2,
+        "occurrences": 3,
+        "heldMs": 0,
+        "times": [
+          15.1,
+          16.6,
+          18.2
+        ]
+      },
+      {
+        "code": "canvas_overflow",
+        "severity": "info",
+        "time": 15.1,
+        "selector": "#c1 > div:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(1)",
+        "message": "Text extends outside the composition canvas.",
+        "rect": {
+          "left": 444,
+          "top": -1438.5,
+          "right": 636,
+          "bottom": -1412.5,
+          "width": 192,
+          "height": 26
+        },
+        "containerSelector": "#root",
+        "text": "Nexus · Players",
+        "fixHint": "Move the text inward, reduce its size, or mark intentional off-canvas animation with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1080,
+          "bottom": 1920,
+          "width": 1080,
+          "height": 1920
+        },
+        "overflow": {
+          "top": 1438.5
+        },
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 444,
+          "y": -1438.5,
+          "width": 192,
+          "height": 26
+        },
+        "firstSeen": 15.1,
+        "lastSeen": 18.2,
+        "occurrences": 3,
+        "heldMs": 0,
+        "times": [
+          15.1,
+          16.6,
+          18.2
+        ]
+      },
+      {
+        "code": "canvas_overflow",
+        "severity": "info",
+        "time": 16.6,
+        "selector": "#c2 > h2:nth-of-type(1)",
+        "message": "Text extends outside the composition canvas.",
+        "rect": {
+          "left": 384.5,
+          "top": -1703,
+          "right": 695.48,
+          "bottom": -1592,
+          "width": 310.98,
+          "height": 111
+        },
+        "containerSelector": "#root",
+        "text": "Groups",
+        "fixHint": "Move the text inward, reduce its size, or mark intentional off-canvas animation with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1080,
+          "bottom": 1920,
+          "width": 1080,
+          "height": 1920
+        },
+        "overflow": {
+          "top": 1703
+        },
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 384.5,
+          "y": -1703,
+          "width": 310.98,
+          "height": 111
+        },
+        "firstSeen": 16.6,
+        "lastSeen": 18.2,
+        "occurrences": 2,
+        "heldMs": 0,
+        "times": [
+          16.6,
+          18.2
+        ]
+      },
+      {
+        "code": "canvas_overflow",
+        "severity": "info",
+        "time": 16.6,
+        "selector": "#c2 > p:nth-of-type(1)",
+        "message": "Text extends outside the composition canvas.",
+        "rect": {
+          "left": 120.73,
+          "top": -1574,
+          "right": 959.25,
+          "bottom": -1528,
+          "width": 838.52,
+          "height": 46
+        },
+        "containerSelector": "#root",
+        "text": "Owner tools: posts, instances, requests, bans.",
+        "fixHint": "Move the text inward, reduce its size, or mark intentional off-canvas animation with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1080,
+          "bottom": 1920,
+          "width": 1080,
+          "height": 1920
+        },
+        "overflow": {
+          "top": 1574
+        },
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 120.73,
+          "y": -1574,
+          "width": 838.52,
+          "height": 46
+        },
+        "firstSeen": 16.6,
+        "lastSeen": 18.2,
+        "occurrences": 2,
+        "heldMs": 0,
+        "times": [
+          16.6,
+          18.2
+        ]
+      },
+      {
+        "code": "canvas_overflow",
+        "severity": "info",
+        "time": 18.2,
+        "selector": "#c3 > h2:nth-of-type(1)",
+        "message": "Text extends outside the composition canvas.",
+        "rect": {
+          "left": 370.52,
+          "top": -1703,
+          "right": 709.48,
+          "bottom": -1592,
+          "width": 338.96,
+          "height": 111
+        },
+        "containerSelector": "#root",
+        "text": "Insights",
+        "fixHint": "Move the text inward, reduce its size, or mark intentional off-canvas animation with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1080,
+          "bottom": 1920,
+          "width": 1080,
+          "height": 1920
+        },
+        "overflow": {
+          "top": 1703
+        },
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 370.52,
+          "y": -1703,
+          "width": 338.96,
+          "height": 111
+        },
+        "firstSeen": 18.2,
+        "lastSeen": 18.2,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          18.2
+        ]
+      },
+      {
+        "code": "canvas_overflow",
+        "severity": "info",
+        "time": 18.2,
+        "selector": "#c3 > p:nth-of-type(1)",
+        "message": "Text extends outside the composition canvas.",
+        "rect": {
+          "left": 269.56,
+          "top": -1574,
+          "right": 810.42,
+          "bottom": -1528,
+          "width": 540.86,
+          "height": 46
+        },
+        "containerSelector": "#root",
+        "text": "Hours played. When you play.",
+        "fixHint": "Move the text inward, reduce its size, or mark intentional off-canvas animation with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1080,
+          "bottom": 1920,
+          "width": 1080,
+          "height": 1920
+        },
+        "overflow": {
+          "top": 1574
+        },
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 269.56,
+          "y": -1574,
+          "width": 540.86,
+          "height": 46
+        },
+        "firstSeen": 18.2,
+        "lastSeen": 18.2,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          18.2
+        ]
+      }
+    ],
+    "duration": 25,
+    "samples": [
+      2,
+      4.6,
+      8.2,
+      11.2,
+      13.6,
+      15.1,
+      16.6,
+      18.2,
+      21,
+      24.5
+    ],
+    "transitionSamples": [],
+    "transitionSamplesDropped": 0,
+    "tolerance": 2,
+    "totalIssueCount": 10,
+    "truncated": false
+  },
+  "motion": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": false,
+    "samples": 0
+  },
+  "contrast": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": true,
+    "samples": [
+      2,
+      8.2,
+      13.6,
+      16.6,
+      24.5
+    ],
+    "checked": 27,
+    "passed": 27
+  },
+  "hdr": {
+    "autoPromotion": null,
+    "inspection": "available"
+  },
+  "snapshots": {
+    "enabled": true,
+    "files": [
+      ".hyperframes\\artifacts\\snapshots\\a7a32983-59f0-4e8e-885b-94189f472aa1\\frame-00-at-2.0s.png",
+      ".hyperframes\\artifacts\\snapshots\\a7a32983-59f0-4e8e-885b-94189f472aa1\\frame-01-at-8.2s.png",
+      ".hyperframes\\artifacts\\snapshots\\a7a32983-59f0-4e8e-885b-94189f472aa1\\frame-02-at-13.6s.png",
+      ".hyperframes\\artifacts\\snapshots\\a7a32983-59f0-4e8e-885b-94189f472aa1\\frame-03-at-16.6s.png",
+      ".hyperframes\\artifacts\\snapshots\\a7a32983-59f0-4e8e-885b-94189f472aa1\\frame-04-at-24.5s.png"
+    ],
+    "times": [
+      2,
+      8.2,
+      13.6,
+      16.6,
+      24.5
+    ],
+    "findingFiles": []
+  }
+}

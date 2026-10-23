@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "D:/GitHub/Nexus/brag-output/work/scene.html"
+        ],
+        "createdAt": "2026-10-20T06:15:06.104Z",
+        "reason": "Claude: video frame reproduces the Nexus site's own colored button/icon glows from website/styles.css"
+      }
+    ]
+  }
+}
