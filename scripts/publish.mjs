@@ -1,31 +1,28 @@
-// Publishes the built NSIS installer to Cloudflare R2 and writes the updater manifests.
+// Publishes the built NSIS installer to Nexus's update server (downloads.gxthgirls.tech) and writes the
+// GitHub updater manifest.
 //
-//   npm run release:r2 -- [--notes "Short summary"] [--dry-run]
+//   npm run release -- [--notes "Short summary"] [--dry-run]
 //
-// Expects `npx tauri build --bundles nsis` to have produced Nexus_<v>_x64-setup.exe and its .sig.
-// Writes latest.json (R2 URLs, uploaded) and latest.github.json (GitHub URLs, attach to the
-// GitHub release as latest.json). Wrangler must be logged in (`npx wrangler login`) or have
-// CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID set.
-import { spawnSync } from "node:child_process";
+// Expects `npx tauri build --bundles nsis` to have produced Nexus_<v>_x64-setup.exe and its .sig, and
+// NEXUS_PUBLISH_TOKEN in the environment. The server checks the signature too, then points
+// latest.json at the new release. Writes latest.github.json (GitHub URLs, attach to the GitHub release
+// as latest.json).
 import { createHash, createPublicKey, verify } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const BUCKET = "app-releases";
-const PREFIX = "nexus";
-const PUBLIC_BASE = "https://downloads.gxthgirls.tech";
+const API = "https://api.gxthgirls.tech/nexus";
 const GITHUB_DOWNLOAD = "https://github.com/LunoviaVR/Nexus/releases/download";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const wranglerBin = join(root, "node_modules", "wrangler", "bin", "wrangler.js");
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
 const notesIdx = args.indexOf("--notes");
 const notesArg = notesIdx >= 0 ? args[notesIdx + 1] : undefined;
 
 const fail = (msg) => {
-  console.error(`publish-r2: ${msg}`);
+  console.error(`publish: ${msg}`);
   process.exit(1);
 };
 
@@ -46,54 +43,40 @@ verifySignature(readFileSync(exePath), signature, pubkey);
 console.log(`Signature OK for ${exeName}`);
 
 const notes = notesArg ?? `Nexus ${version} is here. Open What's new in Nexus for the details.`;
-const manifest = (url) => ({
+const ghManifest = {
   version,
   notes,
   pub_date: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
-  platforms: { "windows-x86_64": { signature, url } },
-});
-
-const keyDir = `${PREFIX}/v${version}`;
-const r2Manifest = manifest(`${PUBLIC_BASE}/${keyDir}/${exeName}`);
-const ghManifest = { ...manifest(`${GITHUB_DOWNLOAD}/v${version}/${exeName}`), pub_date: r2Manifest.pub_date };
-const latestPath = join(bundleDir, "latest.json");
+  platforms: { "windows-x86_64": { signature, url: `${GITHUB_DOWNLOAD}/v${version}/${exeName}` } },
+};
 const latestGithubPath = join(bundleDir, "latest.github.json");
-if (!dryRun) {
-  writeFileSync(latestPath, `${JSON.stringify(r2Manifest, null, 2)}\n`);
-  writeFileSync(latestGithubPath, `${JSON.stringify(ghManifest, null, 2)}\n`);
-  console.log(`Wrote ${latestPath}\nWrote ${latestGithubPath}`);
-}
-
-// Installer and signature first, manifest last, so no client sees a manifest pointing at a missing file.
-const uploads = [
-  { key: `${keyDir}/${exeName}`, file: exePath, type: "application/vnd.microsoft.portable-executable", cache: "public, max-age=31536000, immutable" },
-  { key: `${keyDir}/${exeName}.sig`, file: sigPath, type: "text/plain; charset=utf-8", cache: "public, max-age=31536000, immutable" },
-  { key: `${PREFIX}/latest.json`, file: latestPath, type: "application/json", cache: "public, max-age=60" },
-];
-
-for (const u of uploads) {
-  const cmd = ["r2", "object", "put", `${BUCKET}/${u.key}`, "--remote", "--file", u.file, "--content-type", u.type, "--cache-control", u.cache];
-  if (dryRun) {
-    console.log(`[dry-run] npx wrangler ${cmd.map((c) => (/\s/.test(c) ? `"${c}"` : c)).join(" ")}`);
-    continue;
-  }
-  console.log(`Uploading ${u.key}`);
-  // Run wrangler's JS entry with node directly: no shell, so arguments with spaces stay intact on Windows.
-  const res = spawnSync(process.execPath, [wranglerBin, ...cmd], { cwd: root, stdio: "inherit" });
-  if (res.status !== 0) fail(`upload of ${u.key} failed`);
-}
 
 if (dryRun) {
-  console.log(`\nlatest.json (R2):\n${JSON.stringify(r2Manifest, null, 2)}`);
+  console.log(`[dry-run] PUT ${API}/releases/${version} (${exeName}, notes: ${JSON.stringify(notes)})`);
   console.log(`\nlatest.github.json:\n${JSON.stringify(ghManifest, null, 2)}`);
   process.exit(0);
 }
 
-const live = await fetch(`${PUBLIC_BASE}/${PREFIX}/latest.json`, { cache: "no-store" })
+const token = process.env.NEXUS_PUBLISH_TOKEN;
+if (!token) fail("set NEXUS_PUBLISH_TOKEN");
+writeFileSync(latestGithubPath, `${JSON.stringify(ghManifest, null, 2)}\n`);
+console.log(`Wrote ${latestGithubPath}`);
+
+console.log(`Uploading ${exeName}`);
+const res = await fetch(`${API}/releases/${version}`, {
+  method: "PUT",
+  headers: { Authorization: `Bearer ${token}`, "X-Signature": signature, "X-Notes": encodeURIComponent(notes) },
+  body: readFileSync(exePath),
+});
+const body = await res.json().catch(() => ({}));
+if (res.status !== 201) fail(`upload refused: HTTP ${res.status} ${body.error ?? ""}`);
+if (!body.latest) fail(`uploaded, but latest.json still points at an older or equal version`);
+
+const live = await fetch(`${API}/releases/latest`, { cache: "no-store" })
   .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-  .catch((e) => fail(`could not read back ${PUBLIC_BASE}/${PREFIX}/latest.json: ${e.message}`));
-if (live.version !== version) fail(`live latest.json reports ${live.version}, expected ${version} (edge cache can lag up to 60 s)`);
-console.log(`\nLive: ${PUBLIC_BASE}/${PREFIX}/latest.json → ${live.version}`);
+  .catch((e) => fail(`could not read back ${API}/releases/latest: ${e.message}`));
+if (live.version !== version) fail(`live release is ${live.version}, expected ${version}`);
+console.log(`\nLive: ${body.url}`);
 console.log(`Attach ${exeName}, ${exeName}.sig and latest.github.json (renamed to latest.json) to the GitHub release.`);
 
 /** Minisign "ED" check: Ed25519 over BLAKE2b-512 of the file, plus the global signature over the trusted comment. */

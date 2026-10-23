@@ -154,7 +154,7 @@ Only history from **before** Nexus started recording is imported, so nothing is 
 Nexus has no servers and no analytics or telemetry. It talks only to:
 
 - **VRChat**, for everything about your account, friends, worlds, groups and avatars, and its status page ([status.vrchat.com](https://status.vrchat.com)) once a minute while Nexus is on screen, to show whether VRChat is having problems;
-- **downloads.gxthgirls.tech** (Cloudflare R2), to check for and download updates, with **GitHub** as a fallback;
+- **api.gxthgirls.tech** and **downloads.gxthgirls.tech**, to check for and download updates, with **GitHub** as a fallback. The update check sends only your Nexus version;
 - **[avtrDB](https://avtrdb.com)**, only when you use Avatar discover;
 - the **Discord app on your PC**, only if you turn on Discord status. Discord then shows the world you're in on your profile.
 
@@ -258,13 +258,9 @@ Releases are built and published by GitHub Actions ([`.github/workflows/release.
    git push origin main --tags
    ```
 4. The workflow tests, builds, signs and creates a **draft** release with the installer and `latest.json`. Review it and click **Publish**.
-5. Publish the same build to Cloudflare R2, which installed copies check first:
-   ```bash
-   npm run release:r2 -- --notes "One-line summary for the update toast"
-   ```
-   The script verifies the signature and uploads `nexus/vX.Y.Z/Nexus_X.Y.Z_x64-setup.exe`, its `.sig` and, last, `nexus/latest.json` to the `app-releases` bucket (served at `https://downloads.gxthgirls.tech`). It also writes `latest.github.json`. If you built locally rather than in CI, attach that file to the GitHub release as `latest.json` so the GitHub fallback serves GitHub URLs. Add `--dry-run` to preview without uploading. Installed copies pick the update up within 30 minutes.
+5. Publishing it runs `.github/workflows/publish.yml`, which sends the installer to Nexus's update server (`https://api.gxthgirls.tech/nexus`). The server checks the signature, stores it under `https://downloads.gxthgirls.tech/nexus/vX.Y.Z/` and points `latest.json` at it; the update toast shows the first bullet of the release notes. It needs no secrets: it signs in with GitHub's OIDC token, which the server accepts only from this repository's publish workflow. Installed copies pick the update up within 30 minutes.
 
-**One-time R2 setup:** create the `app-releases` bucket, attach the custom domain `downloads.gxthgirls.tech`, add a CORS rule allowing `GET`/`HEAD` (the website reads `latest.json`), and authenticate wrangler with `npx wrangler login` (or `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID`).
+**Built locally instead?** `npm run release -- --notes "One-line summary"` uploads the local build (with `NEXUS_PUBLISH_TOKEN` from `/srv/secrets/nexus-api.env` on the VPS in your environment) and writes `latest.github.json`; attach that to the GitHub release as `latest.json`. Add `--dry-run` to preview.
 
 > ⚠️ Losing the private key means existing installs can no longer verify updates. Back it up somewhere safe.
 
