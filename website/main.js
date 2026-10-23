@@ -1,10 +1,10 @@
 // Nexus landing page: latest release, nav, hero tilt, counters, tour tabs, reveal on scroll.
 (() => {
-  const MANIFEST = "https://downloads.gxthgirls.tech/nexus/latest.json";
+  const LATEST = "https://api.gxthgirls.tech/nexus/releases/latest";
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   document.documentElement.classList.add("js");
 
-  /* Latest release: Nexus's own update server on R2 first, the GitHub release as the backup.
+  /* Latest release: Nexus's own update server first, the GitHub release as the backup.
      Points every Download at the installer and fills in the version and date; the static links stay if both fail. */
   const applyRelease = ({ version, url, published }) => {
     if (url) {
@@ -28,13 +28,9 @@
         const asset = (release.assets || []).find((a) => /_x64-setup\.exe$/i.test(a.name));
         applyRelease({ version: release.tag_name, url: asset && asset.browser_download_url, published: release.published_at });
       });
-  fetch(MANIFEST, { cache: "no-cache" })
+  fetch(LATEST, { cache: "no-cache" })
     .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-    .then((release) => {
-      const url = release.platforms?.["windows-x86_64"]?.url;
-      if (!url) return Promise.reject("no windows build in manifest");
-      applyRelease({ version: release.version, url, published: release.pub_date });
-    })
+    .then(applyRelease)
     .catch(() => fromGitHub().catch(() => {}));
 
   /* Nav */
