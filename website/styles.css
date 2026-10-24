@@ -1,27 +1,27 @@
-/* Nexus landing page. Shares its structure with the FrameBurst and PlayLedger sites; only the tokens in :root differ. */
+/* Nexus landing page, in the gxthgirls.tech design language. Only the tokens in :root differ from the shared structure. */
 
 @font-face { font-family: "Inter"; src: url("/fonts/inter.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
 @font-face { font-family: "JetBrains Mono"; src: url("/fonts/jetbrains-mono.woff2") format("woff2"); font-weight: 100 800; font-display: swap; }
 
 :root {
   --bg: #080b12;
-  --bg-2: #0c111c;
+  --bg-2: #0b1020;
   --surface: rgba(255, 255, 255, 0.04);
   --surface-2: rgba(255, 255, 255, 0.07);
   --line: rgba(255, 255, 255, 0.09);
   --line-strong: rgba(255, 255, 255, 0.16);
-  --text: #eef3fb;
-  --muted: #9ba8bf;
-  /* Accent pair: indigo into cyan, sampled from the Nexus app icon. */
-  --a1: #6b70ee;
-  --a1-rgb: 107, 112, 238;
-  --a2: #1da6da;
-  --a2-rgb: 29, 166, 218;
-  --a3-rgb: 0, 140, 255;
-  --a-soft: #8fd3ff;
-  --glow-dark: #10163a;
-  --grad: linear-gradient(120deg, #5c62e6 0%, #0b78a6 100%); /* darker ends of a1/a2: white text stays >= 4.8:1 */
-  --grad-text: linear-gradient(100deg, #cfd2ff 0%, #8d94f5 35%, #2bc0ee 100%);
+  --text: #eef2ff;
+  --muted: #98a3c0;
+  /* Accents: the gxthgirls.tech blues (primary, light edge, deep). */
+  --a1: #008cff;
+  --a1-rgb: 0, 140, 255;
+  --a2: #4db5ff;
+  --a2-rgb: 77, 181, 255;
+  --a3-rgb: 0, 82, 204;
+  --a-soft: #9ed8ff;
+  --glow-dark: #0d1a36;
+  --grad: linear-gradient(120deg, #0052cc 0%, #006ae6 100%); /* white text stays >= 5:1 across the whole fill */
+  --grad-text: linear-gradient(100deg, #cfeaff 0%, #4db5ff 40%, #008cff 100%);
   --ok: #3ccf6e;
   --online: #3ccf6e;
   --joinme: #3d9bff;
@@ -39,7 +39,7 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
-html { overflow-x: clip; scroll-behavior: smooth; scroll-padding-top: 90px; -webkit-text-size-adjust: 100%; scrollbar-color: #2a3448 var(--bg); }
+html { overflow-x: clip; scroll-behavior: smooth; scroll-padding-top: 90px; -webkit-text-size-adjust: 100%; scrollbar-color: #26314a var(--bg); }
 body {
   margin: 0; background: var(--bg); color: var(--text);
   font: 400 1.0625rem/1.6 var(--sans);
@@ -316,7 +316,7 @@ kbd { display: inline-block; font: 600 0.8em var(--mono); padding: 0.2em 0.55em;
 
 /* ---------- Footer ---------- */
 .foot { padding: 36px 0 44px; border-top: 1px solid var(--line); background: rgba(4, 6, 11, 0.6); }
-.foot-inner { display: grid; grid-template-columns: auto 1fr auto; gap: 20px 36px; align-items: center; }
+.foot-inner { display: grid; grid-template-columns: 1fr auto; gap: 20px 36px; align-items: center; }
 .meta { margin: 0; display: flex; flex-wrap: wrap; gap: 8px 28px; }
 .meta div { display: grid; gap: 2px; }
 .meta dt { font: 500 0.7rem var(--mono); text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); }
@@ -325,7 +325,7 @@ kbd { display: inline-block; font: 600 0.8em var(--mono); padding: 0.2em 0.55em;
 .foot-links a { display: inline-flex; align-items: center; min-height: 28px; color: var(--muted); text-decoration: none; font-size: 0.92rem; }
 @media (pointer: coarse) { .foot-links a { min-height: 44px; } }
 .foot-links a:hover { color: var(--text); }
-.disclaimer { grid-column: 1 / -1; margin: 0; font-size: 0.84rem; color: var(--muted); }
+.disclaimer { grid-column: 1 / -1; margin: 0; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 20px; font-size: 0.84rem; color: var(--muted); }
 .disclaimer a { color: var(--text); text-underline-offset: 3px; }
 @media (max-width: 760px) { .foot-inner { grid-template-columns: 1fr; } }
 
