@@ -9,11 +9,21 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Badge, Button, Confirm, Dialog, Empty, Img, Input, PageHeader, Skeleton } from "@/components/ui";
 import { cn, dateTime } from "@/lib/format";
-import { fileFullUrl, fileUrls, toPngBase64 } from "@/lib/image";
+import {
+  blobToBase64,
+  drawPrint,
+  fileFullUrl,
+  fileUrls,
+  loadPrintSource,
+  printPng,
+  toPngBase64,
+  type PrintSource,
+  type PrintText,
+} from "@/lib/image";
 import { ImageViewer, type ViewerImage } from "@/components/ImageViewer";
 import { errorText, ipc } from "@/lib/ipc";
 import type { VrcFile } from "@/lib/types";
@@ -135,31 +145,39 @@ const UPLOAD_INFO: Record<UploadKind, { title: string; hint: string; square: boo
   icon: { title: "Upload icon", hint: "Cropped to a square. Requires VRC+.", square: true, max: 1024 },
   emoji: { title: "Upload emoji", hint: "Cropped to a square. Requires VRC+.", square: true, max: 1024 },
   gallery: { title: "Upload banner", hint: "Gallery images can be used as your profile banner. Requires VRC+.", square: false, max: 2048 },
-  print: { title: "Upload print", hint: "Prints show up in your in-game print collection. Requires VRC+.", square: false, max: 2048 },
+  print: { title: "Upload print", hint: "Made into a print like the in-game camera's, ready for your print collection. Requires VRC+.", square: false, max: 2048 },
 };
 
 function UploadDialog({ kind, open, onClose, onDone }: { kind: UploadKind; open: boolean; onClose: () => void; onDone: () => void }) {
   const info = UPLOAD_INFO[kind];
+  const me = useAuth((s) => s.user);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [print, setPrint] = useState<PrintSource | null>(null);
   const [note, setNote] = useState("");
   const [animation, setAnimation] = useState("");
   const [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const printText = (): PrintText => ({ caption: note, author: me?.displayName ?? "", date: new Date() });
 
   const reset = () => {
     if (preview) URL.revokeObjectURL(preview);
+    print?.bitmap.close();
     setFile(null);
     setPreview(null);
+    setPrint(null);
     setNote("");
     setAnimation("");
   };
 
   const submit = async () => {
-    if (!file) return;
+    if (!file || (kind === "print" && !print)) return;
     setBusy(true);
     try {
-      const data = await toPngBase64(file, { square: info.square, max: info.max });
+      const data =
+        kind === "print" && print
+          ? await blobToBase64(await printPng(print, printText()))
+          : await toPngBase64(file, { square: info.square, max: info.max });
       await ipc.uploadImage(kind, data, { note: note || undefined, animationStyle: animation || undefined });
       toast.success("Uploaded");
       reset();
@@ -191,10 +209,23 @@ function UploadDialog({ kind, open, onClose, onDone }: { kind: UploadKind; open:
           type="file"
           accept="image/png,image/jpeg,image/webp"
           className="hidden"
-          onChange={(e) => {
+          onChange={async (e) => {
             const f = e.target.files?.[0];
             e.target.value = "";
             if (!f) return;
+            if (kind === "print") {
+              try {
+                const next = await loadPrintSource(f);
+                setFile(f);
+                setPrint((old) => {
+                  old?.bitmap.close();
+                  return next;
+                });
+              } catch (err) {
+                toast.error(errorText(err));
+              }
+              return;
+            }
             if (preview) URL.revokeObjectURL(preview);
             setFile(f);
             setPreview(URL.createObjectURL(f));
@@ -204,10 +235,12 @@ function UploadDialog({ kind, open, onClose, onDone }: { kind: UploadKind; open:
           onClick={() => input.current?.click()}
           className={cn(
             "flex w-full items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-line bg-panel-2/50 text-muted transition-colors hover:border-accent/60 hover:text-fg cursor-pointer",
-            info.square ? "aspect-square max-h-72" : "aspect-video",
+            info.square ? "aspect-square max-h-72" : kind === "print" ? "aspect-[2048/1440]" : "aspect-video",
           )}
         >
-          {preview ? (
+          {print ? (
+            <PrintPreview source={print} text={printText()} />
+          ) : preview ? (
             <img
               src={preview}
               alt=""
@@ -219,7 +252,12 @@ function UploadDialog({ kind, open, onClose, onDone }: { kind: UploadKind; open:
             </span>
           )}
         </button>
-        {kind === "print" && <Input value={note} maxLength={100} onChange={(e) => setNote(e.target.value)} placeholder="Caption (optional)" />}
+        {kind === "print" &&
+          (print?.framed ? (
+            <p className="text-[13px] text-muted">This is already a finished print, so it's uploaded as it is.</p>
+          ) : (
+            <Input value={note} maxLength={100} onChange={(e) => setNote(e.target.value)} placeholder="Caption (optional)" />
+          ))}
         {kind === "emoji" && (
           <label className="flex items-center justify-between gap-3 text-[13px] text-muted">
             Animation
@@ -247,13 +285,29 @@ function UploadDialog({ kind, open, onClose, onDone }: { kind: UploadKind; open:
           >
             Cancel
           </Button>
-          <Button variant="primary" icon={<Upload className="size-4" />} loading={busy} disabled={!file} onClick={submit}>
+          <Button
+            variant="primary"
+            icon={<Upload className="size-4" />}
+            loading={busy}
+            disabled={!file || (kind === "print" && !print)}
+            onClick={submit}
+          >
             Upload
           </Button>
         </div>
       </div>
     </Dialog>
   );
+}
+
+/** The exact print that will be uploaded, redrawn as the caption changes. */
+function PrintPreview({ source, text }: { source: PrintSource; text: PrintText }) {
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const { caption, author } = text;
+  useEffect(() => {
+    if (canvas.current) drawPrint(canvas.current, source, { caption, author, date: new Date() });
+  }, [source, caption, author]);
+  return <canvas ref={canvas} className="pointer-events-none size-full object-contain" />;
 }
 
 function UploadButton({ kind, onDone }: { kind: UploadKind; onDone: () => void }) {
