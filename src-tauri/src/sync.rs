@@ -2,6 +2,7 @@
 //! feed diffs, cached lookups and desktop notifications.
 
 use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, LazyLock};
 use std::time::{Duration, Instant};
 
@@ -10,6 +11,7 @@ use parking_lot::Mutex;
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
+use tokio::sync::Notify;
 
 use crate::db::{now_ms, FeedEntry};
 use crate::error::{Error, Result};
@@ -205,6 +207,9 @@ pub async fn start_session(app: AppHandle, user: Value) {
         if let Some(h) = s.bio_sweep.take() {
             h.abort();
         }
+        if let Some(h) = s.friend_resync.take() {
+            h.abort();
+        }
         s.friends.clear();
         s.favorites.clear();
         s.user = Some(user.clone());
@@ -221,11 +226,13 @@ pub async fn start_session(app: AppHandle, user: Value) {
     }
     let handle = crate::pipeline::start(app.clone());
     let sweep = spawn_bio_sweep(app.clone());
+    let resync = spawn_friend_resync(app.clone());
     {
         let st = app.state::<AppState>();
         let mut s = st.session.write();
         s.pipeline = Some(handle);
         s.bio_sweep = Some(sweep);
+        s.friend_resync = Some(resync);
     }
     let _ = app.emit("session:ready", ());
 }
@@ -268,6 +275,9 @@ pub fn end_session(app: &AppHandle) {
     if let Some(h) = s.bio_sweep.take() {
         h.abort();
     }
+    if let Some(h) = s.friend_resync.take() {
+        h.abort();
+    }
     *s = Default::default();
     st.api.clear_cookies();
     let _ = app.emit("pipeline:status", false);
@@ -286,9 +296,86 @@ pub async fn load_favorites(app: &AppHandle) -> Result<()> {
     Ok(())
 }
 
-/// Re-pull the full friend list. On a reconnect the diff against the previous model feeds the timeline.
+// ---------------------------------------------------------------------------------------------
+// Keeping the friend list in step. Live events do most of the work, but VRChat can drop one and
+// nothing arrives while the connection is down, so the list is also compared with VRChat now and
+// then, on a reconnect, and when you come back to the window.
+
+/// The friend list is compared with VRChat this often, however quiet things seem.
+const RESYNC_EVERY: Duration = Duration::from_secs(5 * 60);
+/// However often one is asked for, they're at least this far apart.
+const RESYNC_GAP: Duration = Duration::from_secs(60);
+/// Coming back to the window catches up if the list is older than this.
+const RESYNC_ON_FOCUS_AFTER: Duration = Duration::from_secs(2 * 60);
+/// What VRChat told us live this recently is trusted over its friend list, which can lag behind.
+const LIVE_WINS_MS: i64 = 2 * 60_000;
+/// A catch-up with more online/offline changes than this is a backlog (the PC was asleep, say),
+/// not news: they still go in the feed, but without a desktop alert for each.
+const CATCH_UP_ALERTS: usize = 3;
+
+static LAST_SYNC: LazyLock<Mutex<Option<Instant>>> = LazyLock::new(Default::default);
+static RESYNC_WANTED: LazyLock<Notify> = LazyLock::new(Notify::new);
+/// When a friend was last added or removed, in `now_ms` time.
+static FRIENDSHIP_CHANGED_AT: AtomicI64 = AtomicI64::new(0);
+
+fn since_last_sync() -> Duration {
+    LAST_SYNC.lock().map_or(Duration::MAX, |t| t.elapsed())
+}
+
+/// Catch up with VRChat as soon as the pacing allows.
+pub fn request_resync() {
+    RESYNC_WANTED.notify_one();
+}
+
+pub fn friendship_changed() {
+    FRIENDSHIP_CHANGED_AT.store(now_ms(), Ordering::SeqCst);
+}
+
+/// You're looking at Nexus again: make sure what you see isn't old.
+pub fn window_focused(app: &AppHandle) {
+    // The window exists a moment before the app state does.
+    let signed_in = app.try_state::<AppState>().is_some_and(|st| st.me_id().is_ok());
+    if signed_in && since_last_sync() >= RESYNC_ON_FOCUS_AFTER {
+        request_resync();
+    }
+}
+
+/// Does what the refresh button does, on its own. Runs in the background lane, so it only uses
+/// spare capacity and sits out any rate limit.
+pub fn spawn_friend_resync(app: AppHandle) -> tauri::async_runtime::JoinHandle<()> {
+    tauri::async_runtime::spawn(crate::api::background(async move {
+        loop {
+            tokio::select! {
+                _ = RESYNC_WANTED.notified() => tokio::time::sleep(RESYNC_GAP.saturating_sub(since_last_sync())).await,
+                _ = tokio::time::sleep(RESYNC_EVERY.saturating_sub(since_last_sync())) => {}
+            }
+            if let Err(e) = refresh_friends(&app).await {
+                eprintln!("friend resync failed: {e}");
+            }
+            if let Err(e) = load_favorites(&app).await {
+                eprintln!("favorites resync failed: {e}");
+            }
+        }
+    }))
+}
+
+/// Did a live event about this friend arrive at or after `since`?
+fn heard_live_since(friend: &Value, since: i64) -> bool {
+    friend["$liveAt"].as_i64().is_some_and(|t| t >= since)
+}
+
+/// How many friends a fresh list moves in or out of "online", the changes that raise an alert.
+fn presence_changes(known: &HashMap<String, Value>, fresh: &[(String, Value)]) -> usize {
+    let online = |f: &Value| str_of(f, "state") == "online";
+    fresh.iter().filter(|(id, f)| known.get(id).is_some_and(|old| online(old) != online(f))).count()
+}
+
+/// Re-pull the full friend list. When we already had one, the diff against it feeds the timeline.
 pub async fn refresh_friends(app: &AppHandle) -> Result<()> {
     let st = app.state::<AppState>();
+    *LAST_SYNC.lock() = Some(Instant::now());
+    let started = now_ms();
+    let live_cutoff = started - LIVE_WINS_MS;
     let me = st.api.get("auth/user", &[]).await?;
     let owner = str_of(&me, "id").to_string();
     {
@@ -310,11 +397,22 @@ pub async fn refresh_friends(app: &AppHandle) -> Result<()> {
 
     let mut list = st.api.fetch_friends(false).await?;
     list.extend(st.api.fetch_friends(true).await?);
+    // Nobody loses all their friends at once: this is VRChat having a moment.
+    if list.is_empty() && me["friends"].as_array().is_some_and(|a| !a.is_empty()) {
+        return Err(Error::Other("VRChat returned an empty friends list.".into()));
+    }
     // So the game log can still show who someone was after they stop being a friend.
     crate::people::remember(app, list.iter().chain([&me]));
 
     let had_snapshot = !st.session.read().friends.is_empty();
+    // Someone added or removed just now may not be reflected in this list yet: look again shortly.
+    if had_snapshot && FRIENDSHIP_CHANGED_AT.load(Ordering::SeqCst) >= live_cutoff {
+        request_resync();
+        return Ok(());
+    }
+
     let mut seen = HashSet::new();
+    let mut fresh = Vec::with_capacity(list.len());
     for mut f in list {
         let id = str_of(&f, "id").to_string();
         if id.is_empty() || !seen.insert(id.clone()) {
@@ -329,12 +427,26 @@ pub async fn refresh_friends(app: &AppHandle) -> Result<()> {
             "offline"
         };
         f["state"] = json!(state);
-        if had_snapshot {
-            apply_friend(app, &id, f, None, None);
-        } else {
-            let mut s = st.session.write();
+        fresh.push((id, f));
+    }
+
+    if had_snapshot {
+        let alerts = {
+            let s = st.session.read();
+            fresh.retain(|(id, _)| !s.friends.get(id).is_some_and(|known| heard_live_since(known, live_cutoff)));
+            presence_changes(&s.friends, &fresh) <= CATCH_UP_ALERTS
+        };
+        for (id, f) in fresh {
+            let (old, new) = merge_friend(&st, &id, f, None, None);
+            if let Some(old) = old {
+                diff_feed(app, &owner, &old, &new, alerts);
+            }
+        }
+    } else {
+        let mut s = st.session.write();
+        for (id, mut f) in fresh {
             // "Here since" only means something for friends who are on; offline ones keep VRChat's last-seen time.
-            if state != "offline" {
+            if str_of(&f, "state") != "offline" {
                 f["$locationAt"] = json!(now_ms());
             }
             s.friends.insert(id, f);
@@ -344,7 +456,7 @@ pub async fn refresh_friends(app: &AppHandle) -> Result<()> {
     // Anyone missing from the fresh list is no longer a friend.
     let stale: Vec<String> = {
         let s = st.session.read();
-        s.friends.keys().filter(|k| !seen.contains(*k)).cloned().collect()
+        s.friends.iter().filter(|(id, f)| !seen.contains(*id) && !heard_live_since(f, live_cutoff)).map(|(id, _)| id.clone()).collect()
     };
     for id in stale {
         st.session.write().friends.remove(&id);
@@ -379,7 +491,8 @@ pub async fn refresh_friends(app: &AppHandle) -> Result<()> {
         for (id, name) in removed {
             push_feed(app, &owner, "unfriend", &id, &name, None, None, None, None);
             if notify {
-                toast(app, &format!("{name} is no longer your friend"), "Noticed when you signed in");
+                let body = if had_snapshot { "" } else { "Noticed when you signed in" };
+                toast(app, &format!("{name} is no longer your friend"), body);
             }
         }
     }
@@ -415,52 +528,57 @@ pub fn push_feed(
     }
 }
 
-/// Merge a patch into a friend and record what changed.
-pub fn apply_friend(app: &AppHandle, id: &str, patch: Value, state: Option<&str>, world_name: Option<String>) {
+/// Apply something VRChat just told us about a friend and record what changed.
+pub fn apply_friend(app: &AppHandle, id: &str, mut patch: Value, state: Option<&str>, world_name: Option<String>) {
     let st = app.state::<AppState>();
     let Ok(owner) = st.me_id() else { return };
-    let now = now_ms();
-
-    let (old, new) = {
-        let mut s = st.session.write();
-        let old = s.friends.get(id).cloned();
-        let mut new = old.clone().unwrap_or_else(|| json!({ "id": id }));
-        if let (Some(obj), Value::Object(p)) = (new.as_object_mut(), patch) {
-            for (k, v) in p {
-                obj.insert(k, v);
-            }
-        }
-        if let Some(state) = state {
-            new["state"] = json!(state);
-        }
-        let old_loc = old.as_ref().map(|o| str_of(o, "location").to_string()).unwrap_or_default();
-        let new_loc = str_of(&new, "location").to_string();
-        if old.is_none() || old_loc != new_loc {
-            new["$locationAt"] = json!(now);
-            if new_loc == "traveling" && old_loc != "traveling" {
-                new["$lastLocation"] = json!(old_loc);
-            }
-            if let Some(obj) = new.as_object_mut() {
-                obj.remove("$worldName");
-            }
-        }
-        if let Some(name) = world_name {
-            new["$worldName"] = json!(name);
-        }
-        let old_state = old.as_ref().map(|o| str_of(o, "state").to_string()).unwrap_or_default();
-        if str_of(&new, "state") == "online" && old_state != "online" {
-            new["$onlineAt"] = json!(now);
-        }
-        s.friends.insert(id.to_string(), new.clone());
-        (old, new)
-    };
+    if let Some(p) = patch.as_object_mut() {
+        p.insert("$liveAt".into(), json!(now_ms()));
+    }
+    let (old, new) = merge_friend(&st, id, patch, state, world_name);
     let _ = app.emit("friend:update", &new);
     if let Some(old) = old {
-        diff_feed(app, &owner, &old, &new);
+        diff_feed(app, &owner, &old, &new, true);
     }
 }
 
-fn diff_feed(app: &AppHandle, owner: &str, old: &Value, new: &Value) {
+/// Merge a patch into a friend. Returns what they looked like before, if we knew them, and now.
+fn merge_friend(st: &AppState, id: &str, patch: Value, state: Option<&str>, world_name: Option<String>) -> (Option<Value>, Value) {
+    let now = now_ms();
+    let mut s = st.session.write();
+    let old = s.friends.get(id).cloned();
+    let mut new = old.clone().unwrap_or_else(|| json!({ "id": id }));
+    if let (Some(obj), Value::Object(p)) = (new.as_object_mut(), patch) {
+        for (k, v) in p {
+            obj.insert(k, v);
+        }
+    }
+    if let Some(state) = state {
+        new["state"] = json!(state);
+    }
+    let old_loc = old.as_ref().map(|o| str_of(o, "location").to_string()).unwrap_or_default();
+    let new_loc = str_of(&new, "location").to_string();
+    if old.is_none() || old_loc != new_loc {
+        new["$locationAt"] = json!(now);
+        if new_loc == "traveling" && old_loc != "traveling" {
+            new["$lastLocation"] = json!(old_loc);
+        }
+        if let Some(obj) = new.as_object_mut() {
+            obj.remove("$worldName");
+        }
+    }
+    if let Some(name) = world_name {
+        new["$worldName"] = json!(name);
+    }
+    let old_state = old.as_ref().map(|o| str_of(o, "state").to_string()).unwrap_or_default();
+    if str_of(&new, "state") == "online" && old_state != "online" {
+        new["$onlineAt"] = json!(now);
+    }
+    s.friends.insert(id.to_string(), new.clone());
+    (old, new)
+}
+
+fn diff_feed(app: &AppHandle, owner: &str, old: &Value, new: &Value, alerts: bool) {
     let id = str_of(new, "id");
     let name = str_of(new, "displayName");
     let (os, ns) = (str_of(old, "state"), str_of(new, "state"));
@@ -470,7 +588,7 @@ fn diff_feed(app: &AppHandle, owner: &str, old: &Value, new: &Value) {
 
     if os != "online" && ns == "online" {
         push_feed(app, owner, "online", id, name, Some(nl.into()), world_name.clone(), None, None);
-        if in_scope(app, settings.notify_online, id) || app.state::<AppState>().is_watched(id) {
+        if alerts && (in_scope(app, settings.notify_online, id) || app.state::<AppState>().is_watched(id)) {
             let body = world_name.clone().unwrap_or_else(|| "is now online".into());
             toast(app, &format!("{name} is online"), &body);
         }
@@ -487,7 +605,7 @@ fn diff_feed(app: &AppHandle, owner: &str, old: &Value, new: &Value) {
             None,
             None,
         );
-        if in_scope(app, settings.notify_offline, id) || app.state::<AppState>().is_watched(id) {
+        if alerts && (in_scope(app, settings.notify_offline, id) || app.state::<AppState>().is_watched(id)) {
             toast(app, &format!("{name} went offline"), "");
         }
     } else if os == "online" && ns == "online" && nl != ol && nl != "traveling" && !nl.is_empty() {
@@ -541,6 +659,8 @@ pub fn user_patch(content: &Value) -> Value {
 
 const PROFILE_CHECK_COOLDOWN: Duration = Duration::from_secs(180);
 static LAST_PROFILE_CHECK: LazyLock<Mutex<HashMap<String, Instant>>> = LazyLock::new(Default::default);
+/// Friends with activity during their cooldown, for the sweep to look at once it's over.
+static PROFILE_RECHECK: LazyLock<Mutex<HashSet<String>>> = LazyLock::new(Default::default);
 
 /// Fetch a profile fresh, cache it, and record a "bio" feed entry if it changed since last seen.
 pub async fn fetch_profile(app: &AppHandle, user_id: &str) -> Result<Value> {
@@ -551,6 +671,9 @@ pub async fn fetch_profile(app: &AppHandle, user_id: &str) -> Result<Value> {
     let new = st.api.get(&path, &[]).await?;
     let _ = st.db.cache_put("profile", user_id, &new);
     LAST_PROFILE_CHECK.lock().insert(user_id.to_string(), Instant::now());
+    if old.as_ref() != Some(&new) {
+        let _ = app.emit("profile:update", json!({ "id": user_id, "profile": new }));
+    }
 
     if let (Some(old), Ok(owner)) = (old, st.me_id()) {
         let (ob, nb) = (str_of(&old, "bio"), str_of(&new, "bio"));
@@ -568,6 +691,7 @@ pub fn check_profile_soon(app: &AppHandle, user_id: &str) {
     {
         let mut last = LAST_PROFILE_CHECK.lock();
         if last.get(user_id).is_some_and(|t| t.elapsed() < PROFILE_CHECK_COOLDOWN) {
+            PROFILE_RECHECK.lock().insert(user_id.to_string());
             return;
         }
         // Reserve the slot now so bursts of events don't queue duplicate fetches.
@@ -593,6 +717,15 @@ fn next_sweep_target(app: &AppHandle) -> Option<String> {
     let st = app.state::<AppState>();
     let s = st.session.read();
     let last = LAST_PROFILE_CHECK.lock();
+    {
+        let mut recheck = PROFILE_RECHECK.lock();
+        recheck.retain(|id| s.friends.contains_key(id));
+        let due = recheck.iter().find(|id| last.get(*id).is_none_or(|t| t.elapsed() >= PROFILE_CHECK_COOLDOWN)).cloned();
+        if let Some(id) = due {
+            recheck.remove(&id);
+            return Some(id);
+        }
+    }
     let mut best: Option<(Duration, &String)> = None;
     for (id, f) in &s.friends {
         let interval = if str_of(f, "state") == "active" { SWEEP_WEB_EVERY } else { SWEEP_ALL_EVERY };
@@ -636,6 +769,7 @@ pub fn expect_unfriend(id: &str) {
 }
 
 pub fn remove_friend(app: &AppHandle, id: &str) {
+    friendship_changed();
     let st = app.state::<AppState>();
     let removed = st.session.write().friends.remove(id);
     let _ = app.emit("friend:remove", id);
@@ -647,5 +781,72 @@ pub fn remove_friend(app: &AppHandle, id: &str) {
         if st.settings().notify_unfriends && !yours {
             toast(app, &format!("{name} is no longer your friend"), "");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn recent_live_news_beats_the_friend_list() {
+        let cutoff = 1_000;
+        assert!(heard_live_since(&json!({ "$liveAt": 1_000 }), cutoff));
+        assert!(heard_live_since(&json!({ "$liveAt": 5_000 }), cutoff));
+        assert!(!heard_live_since(&json!({ "$liveAt": 999 }), cutoff));
+        // Everything we know about them came from a list, so the next list may correct it.
+        assert!(!heard_live_since(&json!({ "state": "online" }), cutoff));
+    }
+
+    #[test]
+    fn only_moves_in_or_out_of_online_count_as_alert_worthy() {
+        let friend = |state: &str| json!({ "state": state });
+        let known: HashMap<String, Value> = [
+            ("went_online", "offline"),
+            ("went_offline", "online"),
+            ("left_game_for_web", "online"),
+            ("opened_web", "offline"),
+            ("still_online", "online"),
+        ]
+        .into_iter()
+        .map(|(id, state)| (id.to_string(), friend(state)))
+        .collect();
+        let fresh: Vec<(String, Value)> = [
+            ("went_online", "online"),
+            ("went_offline", "offline"),
+            ("left_game_for_web", "active"),
+            ("opened_web", "active"),
+            ("still_online", "online"),
+            ("new_friend", "online"),
+        ]
+        .into_iter()
+        .map(|(id, state)| (id.to_string(), friend(state)))
+        .collect();
+        assert_eq!(presence_changes(&known, &fresh), 3);
+    }
+
+    #[test]
+    fn merging_keeps_the_marks_a_fresh_list_does_not_carry() {
+        let st = AppState::new(crate::db::Db::memory().unwrap());
+        st.session.write().friends.insert(
+            "usr_1".into(),
+            json!({ "id": "usr_1", "location": "wrld_a:1", "state": "online", "$liveAt": 42, "$worldName": "A" }),
+        );
+
+        // Same place: nothing about where they are changes.
+        let (old, new) = merge_friend(&st, "usr_1", json!({ "location": "wrld_a:1", "status": "busy" }), None, None);
+        assert!(old.is_some());
+        assert_eq!((new["status"].as_str(), new["$liveAt"].as_i64(), new["$worldName"].as_str()), (Some("busy"), Some(42), Some("A")));
+
+        // Moved on: the world name no longer applies, and "here since" restarts.
+        let (_, new) = merge_friend(&st, "usr_1", json!({ "location": "wrld_b:2" }), None, None);
+        assert!(new.get("$worldName").is_none());
+        assert!(new["$locationAt"].is_i64());
+        assert_eq!(new["$liveAt"].as_i64(), Some(42));
+
+        // Someone we didn't know about.
+        let (old, new) = merge_friend(&st, "usr_2", json!({ "location": "offline" }), Some("offline"), None);
+        assert!(old.is_none());
+        assert_eq!((new["id"].as_str(), new["state"].as_str()), (Some("usr_2"), Some("offline")));
     }
 }

@@ -21,7 +21,7 @@ import { EditProfileDialog } from "@/components/EditProfileDialog";
 import { errorText, ipc } from "@/lib/ipc";
 import { applyLogin } from "@/lib/session";
 import { useUpdateChecks } from "@/lib/updates";
-import type { CurrentUser, FeedEntry, GlEvent, InstanceState, UserBrief, VrcNotification, VrcUser } from "@/lib/types";
+import type { CurrentUser, FeedEntry, GlEvent, InstanceState, UserBrief, VrcNotification, VrcProfile, VrcUser } from "@/lib/types";
 import { useAuth } from "@/stores/auth";
 import { useFriends } from "@/stores/friends";
 import { useLive } from "@/stores/live";
@@ -127,14 +127,23 @@ function useBackendEvents() {
     const live = useLive.getState();
     const auth = useAuth.getState();
     const subs = [
-      listen<VrcUser[]>("friends:snapshot", (e) => friends.setSnapshot(e.payload)),
+      listen<VrcUser[]>("friends:snapshot", (e) => {
+        friends.setSnapshot(e.payload);
+        // A catch-up can record more at once than the live feed holds on to.
+        qc.invalidateQueries({ queryKey: ["feed"] });
+      }),
       listen<VrcUser>("friend:update", (e) => friends.upsert(e.payload)),
+      listen<{ id: string; profile: VrcProfile }>("profile:update", (e) => qc.setQueryData(["profile", e.payload.id], e.payload.profile)),
       listen<string>("friend:remove", (e) => friends.remove(e.payload)),
       listen<string[]>("favorites:update", (e) => friends.setFavorites(e.payload)),
       listen<string[]>("watched:update", (e) => friends.setWatched(e.payload)),
       listen<CurrentUser>("user:update", (e) => auth.updateUser(e.payload)),
       listen<UserBrief>("user:brief", (e) => usePeople.getState().merge([e.payload])),
-      listen<FeedEntry>("feed:new", (e) => live.pushFeed(e.payload)),
+      listen<FeedEntry>("feed:new", (e) => {
+        live.pushFeed(e.payload);
+        // An open profile's Activity tab reads the same records.
+        qc.invalidateQueries({ queryKey: ["history", e.payload.userId] });
+      }),
       listen<GlEvent>("gamelog:event", (e) => live.pushGamelog(e.payload)),
       listen<InstanceState>("gamelog:instance", (e) => live.setInstance(e.payload)),
       listen<boolean>("pipeline:status", (e) => live.setPipeline(e.payload)),

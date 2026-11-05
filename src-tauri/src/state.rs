@@ -20,6 +20,8 @@ pub struct Session {
     pub watched: std::collections::HashSet<String>,
     /// Background profile sweep that catches bio edits made outside the game.
     pub bio_sweep: Option<tauri::async_runtime::JoinHandle<()>>,
+    /// Background friend list check that catches whatever the live connection missed.
+    pub friend_resync: Option<tauri::async_runtime::JoinHandle<()>>,
 }
 
 pub struct PendingLogin {

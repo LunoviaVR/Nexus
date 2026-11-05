@@ -66,13 +66,15 @@ pub fn run() {
             }
             Ok(())
         })
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+        .on_window_event(|window, event| match event {
+            tauri::WindowEvent::CloseRequested { api, .. } => {
                 if window.state::<AppState>().settings().minimize_to_tray {
                     api.prevent_close();
                     let _ = window.hide();
                 }
             }
+            tauri::WindowEvent::Focused(true) => sync::window_focused(window.app_handle()),
+            _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             commands::auth_login,

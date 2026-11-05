@@ -391,7 +391,7 @@ impl Api {
         self.expired.store(false, Ordering::SeqCst);
     }
 
-    fn session_lost(&self) {
+    pub fn session_lost(&self) {
         if !self.expired.swap(true, Ordering::SeqCst) {
             if let Some(f) = self.on_expired.get() {
                 f();
