@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Search, Shirt } from "lucide-react";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { AvatarCard, GRID } from "@/components/Cards";
 import { AvatarDiscover } from "@/components/AvatarDiscover";
 import { Chip, Empty, Input, PageHeader, Segmented, Skeleton } from "@/components/ui";

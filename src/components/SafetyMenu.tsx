@@ -2,7 +2,7 @@ import * as Menu from "@radix-ui/react-dropdown-menu";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ban, Check, EyeOff, MessageSquareOff, MicOff, MoreHorizontal, UserMinus } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/format";
 import { errorText, ipc } from "@/lib/ipc";
 import type { ModerationKind, PlayerModeration, VrcUser } from "@/lib/types";

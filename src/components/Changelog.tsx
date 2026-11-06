@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getVersion } from "@tauri-apps/api/app";
 import { ExternalLink, Megaphone } from "lucide-react";
 import { Fragment, useEffect, useState, type ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { releasesUpTo, takeWhatsNew, type Release } from "@/lib/changelog";
 import { cn } from "@/lib/format";
 import { errorText, ipc } from "@/lib/ipc";

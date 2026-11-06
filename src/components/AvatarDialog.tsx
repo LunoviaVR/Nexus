@@ -1,6 +1,6 @@
 import { CalendarDays, Copy, ExternalLink, Gauge, Shirt, Sparkles, Tag } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { cn, list } from "@/lib/format";
 import { fullSizeUrl } from "@/lib/image";
 import { errorText, ipc } from "@/lib/ipc";

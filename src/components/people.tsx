@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Crown, Globe, Lock, Plane, Users } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { ACCESS_LABEL, parseLocation, REGION_LABEL, isJoinable } from "@/lib/location";
 import { cn, presenceColor, STATUS_LABEL, trustRank, userImage } from "@/lib/format";
 import { errorText, ipc } from "@/lib/ipc";

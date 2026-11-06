@@ -1,6 +1,6 @@
 import { Copy, ExternalLink, Globe, Heart, LogIn, Plus, Send, Users, Eye, CalendarDays } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { errorText, ipc } from "@/lib/ipc";
 import { parseLocation, REGION_LABEL } from "@/lib/location";
 import { useInstance, useWorld } from "@/lib/queries";

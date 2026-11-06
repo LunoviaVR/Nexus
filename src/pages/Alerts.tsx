@@ -1,6 +1,6 @@
 import { ArrowLeft, BellOff, BellRing, Search } from "lucide-react";
 import { useMemo, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { LocationLabel, UserAvatar } from "@/components/people";
 import { Button, Card, Empty, IconButton, Input, PageHeader, SectionTitle } from "@/components/ui";
 import { ago, duration } from "@/lib/format";

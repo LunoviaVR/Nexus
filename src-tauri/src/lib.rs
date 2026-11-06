@@ -22,7 +22,7 @@ mod vrc_config;
 mod vrc_launch;
 mod vrcx;
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tauri_plugin_window_state::StateFlags;
 
 use state::AppState;
@@ -57,6 +57,10 @@ pub fn run() {
             let handle = app.handle().clone();
             app.state::<AppState>().api.set_on_expired(move || {
                 tauri::async_runtime::spawn(sync::recover_session(handle.clone()));
+            });
+            let handle = app.handle().clone();
+            app.state::<AppState>().api.set_on_rate_limited(move |retrying| {
+                let _ = handle.emit("api:rate-limited", serde_json::json!({ "retrying": retrying }));
             });
             tray::create(app.handle())?;
             gamelog::spawn(app.handle().clone());

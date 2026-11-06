@@ -2,7 +2,7 @@
 //!
 //! Requests aren't paced. At most `MAX_CONNECTIONS` are in flight at once, and jobs that make
 //! many requests in a row are paced by their own limiter and retry a 429 with a backoff.
-//! Anything else that gets a 429 reports it.
+//! Anything else that gets a 429 reports it. Either way the UI is told it's being rate limited.
 //!
 //! On top of that, requests that can't do any good aren't sent at all:
 //! - a read that's already on its way (asked for less than `MERGE_FOR` ago) is shared;
@@ -42,7 +42,11 @@ const FRIENDS_MAX_OFFSET: usize = 7_500;
 const FRIENDS_PAGE: usize = 50;
 
 const SESSION_EXPIRED: &str = "Your VRChat session expired. Please sign in again.";
+/// The UI recognises this exact text (`src/lib/toast.tsx`), so keep the two in step.
 const RATE_LIMITED: &str = "VRChat is limiting how fast you can do this right now. Try again in a moment.";
+
+/// The UI hears about rate limiting at most this often (sooner if it gets worse).
+const REPORT_LIMITED_EVERY: Duration = Duration::from_secs(2);
 
 fn rate_limited() -> Error {
     Error::Api { status: 429, message: RATE_LIMITED.into() }
@@ -103,6 +107,10 @@ pub struct Api {
     expired: AtomicBool,
     /// Called once when the session is found to have expired.
     on_expired: OnceLock<Box<dyn Fn() + Send + Sync>>,
+    /// Called when VRChat rate limits a request: `true` if it will be retried by itself.
+    on_rate_limited: OnceLock<Box<dyn Fn(bool) + Send + Sync>>,
+    /// The last rate limit reported to the UI, and whether it was being retried.
+    limited_at: Mutex<Option<(Instant, bool)>>,
 }
 
 impl Api {
@@ -120,12 +128,38 @@ impl Api {
             failed: Mutex::new(HashMap::new()),
             expired: AtomicBool::new(false),
             on_expired: OnceLock::new(),
+            on_rate_limited: OnceLock::new(),
+            limited_at: Mutex::new(None),
         }
     }
 
     /// What to do when a request reveals the session has expired (only the first one counts).
     pub fn set_on_expired(&self, f: impl Fn() + Send + Sync + 'static) {
         let _ = self.on_expired.set(Box::new(f));
+    }
+
+    /// What to do when VRChat rate limits a request (`true` if it will be retried by itself).
+    pub fn set_on_rate_limited(&self, f: impl Fn(bool) + Send + Sync + 'static) {
+        let _ = self.on_rate_limited.set(Box::new(f));
+    }
+
+    /// Tell the UI about a 429. A burst of them is reported once, but one that won't be retried
+    /// is reported straight after ones that will, since that's something the user has to wait out.
+    fn report_limited(&self, retrying: bool) {
+        let now = Instant::now();
+        {
+            let mut last = self.limited_at.lock();
+            if let Some((at, was_retrying)) = *last {
+                let recent = now.saturating_duration_since(at) < REPORT_LIMITED_EVERY;
+                if recent && (retrying || !was_retrying) {
+                    return;
+                }
+            }
+            *last = Some((now, retrying));
+        }
+        if let Some(f) = self.on_rate_limited.get() {
+            f(retrying);
+        }
     }
 
     /// Let requests go out again after the session was found expired.
@@ -262,7 +296,9 @@ impl Api {
             if status == StatusCode::TOO_MANY_REQUESTS {
                 drop((res, conn));
                 // Only a job retries. Nothing was done, so even an action is safe to send again.
-                if let Some(job) = job.filter(|j| limited < j.retries) {
+                let retry = job.filter(|j| limited < j.retries);
+                self.report_limited(retry.is_some());
+                if let Some(job) = retry {
                     tokio::time::sleep(job.delay(limited)).await;
                     limited += 1;
                     continue;
@@ -380,6 +416,7 @@ impl Api {
         self.store_cookies(res.headers());
         let status = res.status();
         if status == StatusCode::TOO_MANY_REQUESTS {
+            self.report_limited(false);
             return Err(rate_limited());
         }
         let json: Value = res.json().await.unwrap_or(Value::Null);
@@ -416,6 +453,8 @@ impl Api {
         let res = req.send().await?;
         let status = res.status();
         if status == StatusCode::TOO_MANY_REQUESTS {
+            // A job tries this again later; a picture on screen just stays blank for now.
+            self.report_limited(ratelimit::current().is_some());
             return Err(rate_limited());
         }
         if !status.is_success() {
@@ -549,6 +588,26 @@ mod request_tests {
         api.set_cookies(HashMap::new());
         api.session_lost();
         assert_eq!(calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn rate_limits_are_reported_once_per_burst_unless_they_get_worse() {
+        let api = Api::new();
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let s = seen.clone();
+        api.set_on_rate_limited(move |retrying| s.lock().push(retrying));
+        api.report_limited(true);
+        api.report_limited(true);
+        // One the user has to wait out is worth saying straight away…
+        api.report_limited(false);
+        // …and nothing milder replaces it during the same burst.
+        api.report_limited(true);
+        api.report_limited(false);
+        assert_eq!(*seen.lock(), vec![true, false]);
+        // Once the burst is over, the next one is reported again.
+        *api.limited_at.lock() = Some((Instant::now() - REPORT_LIMITED_EVERY, false));
+        api.report_limited(true);
+        assert_eq!(*seen.lock(), vec![true, false, true]);
     }
 
     #[tokio::test]

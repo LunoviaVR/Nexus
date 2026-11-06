@@ -29,7 +29,7 @@ import {
   Users,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { ago, cn, dateTime, duration, platformLabel, STATUS_LABEL, userImage } from "@/lib/format";
 import { errorText, ipc } from "@/lib/ipc";
 import { parseLocation, sameInstance } from "@/lib/location";

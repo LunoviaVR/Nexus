@@ -15,6 +15,7 @@
   --accent-strong: oklch(0.62 0.2 var(--accent-h));
   --accent-soft: oklch(0.7 0.17 var(--accent-h) / 0.15);
   --accent-fg: oklch(0.99 0 0);
+  --warn: oklch(0.84 0.16 88);
   --shadow: 0 10px 40px -12px oklch(0 0 0 / 0.6);
   color-scheme: dark;
 }
@@ -41,6 +42,8 @@
   --accent: oklch(0.56 0.2 var(--accent-h));
   --accent-strong: oklch(0.5 0.21 var(--accent-h));
   --accent-soft: oklch(0.56 0.2 var(--accent-h) / 0.1);
+  /* Yellow text on white needs to be darker to read. */
+  --warn: oklch(0.6 0.14 75);
   --shadow: 0 10px 40px -16px oklch(0.3 0.03 275 / 0.35);
   color-scheme: light;
 }
@@ -58,6 +61,7 @@
   --color-accent-strong: var(--accent-strong);
   --color-accent-soft: var(--accent-soft);
   --color-accent-fg: var(--accent-fg);
+  --color-warn: var(--warn);
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   --shadow-pop: var(--shadow);
 

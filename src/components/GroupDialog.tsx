@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { Ban, BadgeCheck, CalendarDays, Copy, Crown, ExternalLink, Globe, Link as LinkIcon, Lock, LogIn, Megaphone, Plus, Search, Send, UserCog, UserPlus, Users } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { ago, cn, list } from "@/lib/format";
 import { errorText, ipc } from "@/lib/ipc";
 import { useUser } from "@/lib/queries";

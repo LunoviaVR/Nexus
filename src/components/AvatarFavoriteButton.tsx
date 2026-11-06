@@ -2,7 +2,7 @@ import * as Popover from "@radix-ui/react-popover";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { Check, Star, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/format";
 import { errorText, ipc, type FavoriteKind } from "@/lib/ipc";
 import { Button, Spinner } from "./ui";

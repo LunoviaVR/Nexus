@@ -1,7 +1,7 @@
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Crown, Plus, Users } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/format";
 import { errorText, ipc } from "@/lib/ipc";
 import { createdLocation } from "@/lib/location";

@@ -2,7 +2,7 @@ import * as RDialog from "@radix-ui/react-dialog";
 import { save as pickSavePath } from "@tauri-apps/plugin-dialog";
 import { ChevronLeft, ChevronRight, Download, Maximize2, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type PointerEvent, type WheelEvent } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { cn, imgSrc } from "@/lib/format";
 import { errorText, ipc } from "@/lib/ipc";
 import { Confirm, Tip } from "./ui";

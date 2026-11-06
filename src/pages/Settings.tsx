@@ -3,7 +3,7 @@ import { disable as disableAutostart, enable as enableAutostart, isEnabled as au
 import { open as pickFolder, save as saveFile } from "@tauri-apps/plugin-dialog";
 import { BellRing, ChevronRight, CircleAlert, CircleCheck, Download, ExternalLink, FolderOpen, LogOut, Megaphone, Monitor, Moon, RefreshCw, RotateCcw, ShieldCheck, Sun, Trash2, Unlock, UserRoundCog } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { Button, Card, Confirm, Img, Input, PageHeader, Segmented, Switch, Tip } from "@/components/ui";
 import { cn } from "@/lib/format";
 import { errorText, ipc } from "@/lib/ipc";

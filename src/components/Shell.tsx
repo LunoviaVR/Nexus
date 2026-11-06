@@ -24,7 +24,7 @@ import {
   Megaphone,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { cn, STATUS_COLOR, STATUS_LABEL } from "@/lib/format";
 import { errorText, ipc } from "@/lib/ipc";
 import type { Status } from "@/lib/types";

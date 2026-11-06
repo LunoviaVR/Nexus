@@ -10,7 +10,7 @@ import {
   Upload,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { Badge, Button, Confirm, Dialog, Empty, Img, Input, PageHeader, Skeleton } from "@/components/ui";
 import { cn, dateTime } from "@/lib/format";
 import {

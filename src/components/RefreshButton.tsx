@@ -1,7 +1,7 @@
 import { useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/format";
 import { errorText } from "@/lib/ipc";
 import { Tip } from "./ui";

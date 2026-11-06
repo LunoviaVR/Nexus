@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Bell, Check, Hand, Mail, MailPlus, UserPlus, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { actions, socialAction } from "@/components/people";
 import { Button, Card, Chip, Empty, Img, PageHeader, Skeleton } from "@/components/ui";
 import { ago } from "@/lib/format";

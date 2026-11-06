@@ -7,7 +7,8 @@ import * as RTooltip from "@radix-ui/react-tooltip";
 import { motion } from "motion/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, type ReactNode } from "react";
-import { toast, Toaster } from "sonner";
+import { Toaster } from "sonner";
+import { showRateLimited, toast } from "@/lib/toast";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { CommandPalette } from "@/components/CommandPalette";
 import { FriendsRail } from "@/components/FriendsRail";
@@ -149,6 +150,7 @@ function useBackendEvents() {
       listen<boolean>("pipeline:status", (e) => live.setPipeline(e.payload)),
       listen("groups:changed", () => qc.invalidateQueries({ queryKey: ["groups", useAuth.getState().user?.id] })),
       listen<VrcNotification>("notification:new", (e) => live.pushNotification(e.payload)),
+      listen<{ retrying: boolean }>("api:rate-limited", (e) => showRateLimited(e.payload.retrying)),
       listen("session:ready", async () => {
         const { friends: list, favorites } = await ipc.friends();
         friends.setSnapshot(list);

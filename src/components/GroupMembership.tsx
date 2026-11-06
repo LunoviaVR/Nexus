@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { LogIn, LogOut, UserPlus, X } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { errorText, ipc } from "@/lib/ipc";
 import type { VrcGroupDetail } from "@/lib/types";
 import { useAuth } from "@/stores/auth";

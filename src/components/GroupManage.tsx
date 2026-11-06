@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ban, Check, Crown, ExternalLink, Globe, ImagePlus, Megaphone, Pencil, Plus, Power, Search, ShieldCheck, Trash2, UserMinus, UserPlus, Users, X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { ago, cn } from "@/lib/format";
 import { fileUrls, toPngBase64 } from "@/lib/image";
 import { errorText, ipc } from "@/lib/ipc";

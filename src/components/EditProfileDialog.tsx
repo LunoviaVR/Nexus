@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ExternalLink, ImagePlus, Plus, Star, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/format";
 import { fileUrls, toPngBase64 } from "@/lib/image";
 import { errorText, ipc } from "@/lib/ipc";
