@@ -41,15 +41,19 @@ fn unhex(s: &str) -> Option<[u8; 32]> {
     Some(out)
 }
 
-/// The master key, created on first use. `created` tells the caller there was no key before.
-pub fn master_key() -> Result<([u8; 32], bool)> {
+/// The master key, created on first use. Only a key that truly isn't there is replaced: writing a
+/// new one over a key we merely failed to read would make the database unreadable for good.
+pub fn master_key() -> Result<[u8; 32]> {
     let entry = Entry::new(SERVICE, ACCOUNT)?;
-    if let Some(key) = entry.get_password().ok().as_deref().and_then(unhex) {
-        return Ok((key, false));
+    match entry.get_password() {
+        Ok(stored) => unhex(&stored).ok_or_else(|| Error::Other("The stored database key is damaged.".into())),
+        Err(keyring::Error::NoEntry) => {
+            let key = random::<32>()?;
+            entry.set_password(&hex(&key))?;
+            Ok(key)
+        }
+        Err(e) => Err(e.into()),
     }
-    let key = random::<32>()?;
-    entry.set_password(&hex(&key))?;
-    Ok((key, true))
 }
 
 /// Separate keys per use, derived from the master key.

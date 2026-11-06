@@ -29,8 +29,6 @@ fn retry_later(status: u16) -> std::time::Duration {
     })
 }
 
-const ALLOWED_HOSTS: [&str; 4] = ["api.vrchat.cloud", "assets.vrchat.com", "files.vrchat.cloud", "vrchat.com"];
-
 fn sniff(bytes: &[u8]) -> &'static str {
     match bytes {
         [0x89, b'P', b'N', b'G', ..] => "image/png",
@@ -44,8 +42,7 @@ fn sniff(bytes: &[u8]) -> &'static str {
 fn target_url(query: &str) -> Option<String> {
     let raw = query.split('&').find_map(|kv| kv.strip_prefix("u="))?;
     let url = urlencoding::decode(raw).ok()?.into_owned();
-    let host = url.strip_prefix("https://")?.split('/').next()?;
-    ALLOWED_HOSTS.iter().any(|h| host == *h || host.ends_with(&format!(".{h}"))).then_some(url)
+    crate::api::is_vrchat_url(&url).then_some(url)
 }
 
 const CACHE_DIR: &str = "images-enc";

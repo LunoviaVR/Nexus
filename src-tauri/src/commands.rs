@@ -1702,13 +1702,6 @@ pub fn ugc_dir_get(app: AppHandle) -> FolderInfo {
 /// Download a VRChat image (with the session cookie) to a path the user picked in a save dialog.
 #[tauri::command]
 pub async fn image_download(app: AppHandle, url: String, path: String) -> Result<()> {
-    let host_ok = url
-        .strip_prefix("https://")
-        .and_then(|r| r.split('/').next())
-        .is_some_and(|h| h.ends_with("vrchat.cloud") || h.ends_with("vrchat.com"));
-    if !host_ok {
-        return Err(Error::Other("Only VRChat images can be downloaded.".into()));
-    }
     let (_, bytes) = app.state::<AppState>().api.fetch_bytes(&url).await?;
     std::fs::write(&path, bytes)?;
     Ok(())

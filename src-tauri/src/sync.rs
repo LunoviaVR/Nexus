@@ -2,7 +2,7 @@
 //! feed diffs, cached lookups and desktop notifications.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock};
 use std::time::{Duration, Instant};
 
@@ -197,19 +197,21 @@ pub async fn world_name_quick(app: &AppHandle, loc: &str) -> Option<String> {
 // ---------------------------------------------------------------------------------------------
 // Session lifecycle
 
+/// Bumped by every session start and end, so a start that was overtaken while it loaded gives up.
+static SESSION_GEN: AtomicU64 = AtomicU64::new(0);
+
+fn stop_jobs(s: &mut crate::state::Session) {
+    for h in [s.pipeline.take(), s.bio_sweep.take(), s.friend_resync.take()].into_iter().flatten() {
+        h.abort();
+    }
+}
+
 pub async fn start_session(app: AppHandle, user: Value) {
+    let gen = SESSION_GEN.fetch_add(1, Ordering::SeqCst) + 1;
     {
         let st = app.state::<AppState>();
         let mut s = st.session.write();
-        if let Some(h) = s.pipeline.take() {
-            h.abort();
-        }
-        if let Some(h) = s.bio_sweep.take() {
-            h.abort();
-        }
-        if let Some(h) = s.friend_resync.take() {
-            h.abort();
-        }
+        stop_jobs(&mut s);
         s.friends.clear();
         s.favorites.clear();
         s.user = Some(user.clone());
@@ -224,16 +226,17 @@ pub async fn start_session(app: AppHandle, user: Value) {
     if let Err(e) = load_favorites(&app).await {
         eprintln!("favorites load failed: {e}");
     }
-    let handle = crate::pipeline::start(app.clone());
-    let sweep = spawn_bio_sweep(app.clone());
-    let resync = spawn_friend_resync(app.clone());
-    {
-        let st = app.state::<AppState>();
-        let mut s = st.session.write();
-        s.pipeline = Some(handle);
-        s.bio_sweep = Some(sweep);
-        s.friend_resync = Some(resync);
+    let st = app.state::<AppState>();
+    let mut s = st.session.write();
+    // Signed out or signed in again while the friends list loaded: that session owns the jobs now.
+    if SESSION_GEN.load(Ordering::SeqCst) != gen {
+        return;
     }
+    stop_jobs(&mut s);
+    s.pipeline = Some(crate::pipeline::start(app.clone()));
+    s.bio_sweep = Some(spawn_bio_sweep(app.clone()));
+    s.friend_resync = Some(spawn_friend_resync(app.clone()));
+    drop(s);
     let _ = app.emit("session:ready", ());
 }
 
@@ -267,17 +270,10 @@ pub async fn recover_session(app: AppHandle) {
 }
 
 pub fn end_session(app: &AppHandle) {
+    SESSION_GEN.fetch_add(1, Ordering::SeqCst);
     let st = app.state::<AppState>();
     let mut s = st.session.write();
-    if let Some(h) = s.pipeline.take() {
-        h.abort();
-    }
-    if let Some(h) = s.bio_sweep.take() {
-        h.abort();
-    }
-    if let Some(h) = s.friend_resync.take() {
-        h.abort();
-    }
+    stop_jobs(&mut s);
     *s = Default::default();
     st.api.clear_cookies();
     let _ = app.emit("pipeline:status", false);

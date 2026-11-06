@@ -273,8 +273,10 @@ impl Db {
             let aside = path.with_extension(format!("db.unreadable-{}", now_ms()));
             eprintln!("db: {} can't be decrypted with the stored key; moved to {}", path.display(), aside.display());
             std::fs::rename(path, &aside)?;
-            for ext in ["db-wal", "db-shm"] {
-                let _ = std::fs::remove_file(path.with_extension(ext));
+            // The WAL may hold writes not yet in the main file; keep it with the copy set aside.
+            for ext in ["wal", "shm"] {
+                let side = |p: &Path| std::path::PathBuf::from(format!("{}-{ext}", p.display()));
+                let _ = std::fs::rename(side(path), side(&aside));
             }
             let conn = Connection::open(path)?;
             apply_key(&conn, key)?;
@@ -433,44 +435,54 @@ impl Db {
 
         let mut added = vec![];
         let mut removed = vec![];
-        c.execute_batch("BEGIN")?;
-        for (id, name) in current {
-            match known.get(id.as_str()) {
-                None => {
-                    let ts = if first_run { None } else { Some(now) };
-                    c.execute(
-                        "INSERT INTO friend_log (owner_id, user_id, display_name, added_ts) VALUES (?1, ?2, ?3, ?4)",
-                        params![owner, id, name, ts],
-                    )?;
-                    if !first_run {
+        // The game log tailer may already have a transaction open on this connection.
+        let own_tx = c.is_autocommit();
+        if own_tx {
+            c.execute_batch("BEGIN")?;
+        }
+        let res = (|| -> Result<()> {
+            for (id, name) in current {
+                match known.get(id.as_str()) {
+                    None => {
+                        let ts = if first_run { None } else { Some(now) };
+                        c.execute(
+                            "INSERT INTO friend_log (owner_id, user_id, display_name, added_ts) VALUES (?1, ?2, ?3, ?4)",
+                            params![owner, id, name, ts],
+                        )?;
+                        if !first_run {
+                            added.push((id.clone(), name.clone()));
+                        }
+                    }
+                    Some(Some(_)) => {
+                        c.execute(
+                            "UPDATE friend_log SET added_ts = ?3, removed_ts = NULL, display_name = ?4 WHERE owner_id = ?1 AND user_id = ?2",
+                            params![owner, id, now, name],
+                        )?;
                         added.push((id.clone(), name.clone()));
                     }
-                }
-                Some(Some(_)) => {
-                    c.execute(
-                        "UPDATE friend_log SET added_ts = ?3, removed_ts = NULL, display_name = ?4 WHERE owner_id = ?1 AND user_id = ?2",
-                        params![owner, id, now, name],
-                    )?;
-                    added.push((id.clone(), name.clone()));
-                }
-                Some(None) => {
-                    c.execute(
-                        "UPDATE friend_log SET display_name = ?3 WHERE owner_id = ?1 AND user_id = ?2",
-                        params![owner, id, name],
-                    )?;
+                    Some(None) => {
+                        c.execute(
+                            "UPDATE friend_log SET display_name = ?3 WHERE owner_id = ?1 AND user_id = ?2",
+                            params![owner, id, name],
+                        )?;
+                    }
                 }
             }
-        }
-        for (id, name, rm) in &rows {
-            if rm.is_none() && !current_ids.contains(id.as_str()) {
-                c.execute(
-                    "UPDATE friend_log SET removed_ts = ?3 WHERE owner_id = ?1 AND user_id = ?2",
-                    params![owner, id, now],
-                )?;
-                removed.push((id.clone(), name.clone()));
+            for (id, name, rm) in &rows {
+                if rm.is_none() && !current_ids.contains(id.as_str()) {
+                    c.execute(
+                        "UPDATE friend_log SET removed_ts = ?3 WHERE owner_id = ?1 AND user_id = ?2",
+                        params![owner, id, now],
+                    )?;
+                    removed.push((id.clone(), name.clone()));
+                }
             }
+            Ok(())
+        })();
+        if own_tx {
+            c.execute_batch(if res.is_ok() { "COMMIT" } else { "ROLLBACK" })?;
         }
-        c.execute_batch("COMMIT")?;
+        res?;
         Ok((added, removed))
     }
 
@@ -1084,6 +1096,17 @@ mod tests {
         // Re-friending is reported as an add.
         let (added, _) = db.friend_log_sync("me", &[a.clone(), b]).unwrap();
         assert_eq!(added, vec![a]);
+    }
+
+    #[test]
+    fn friend_log_syncs_inside_the_game_logs_open_transaction() {
+        let db = Db::memory().unwrap();
+        db.conn().execute_batch("BEGIN").unwrap();
+        db.friend_log_sync("me", &[("usr_a".to_string(), "A".to_string())]).unwrap();
+        assert!(!db.conn().is_autocommit(), "the outer transaction is left for its owner to commit");
+        db.conn().execute_batch("COMMIT").unwrap();
+        let n: i64 = db.conn().query_row("SELECT COUNT(*) FROM friend_log", [], |r| r.get(0)).unwrap();
+        assert_eq!(n, 1);
     }
 
     #[test]

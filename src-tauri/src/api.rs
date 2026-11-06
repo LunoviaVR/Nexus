@@ -48,6 +48,14 @@ const RATE_LIMITED: &str = "VRChat is limiting how fast you can do this right no
 /// The UI hears about rate limiting at most this often (sooner if it gets worse).
 const REPORT_LIMITED_EVERY: Duration = Duration::from_secs(2);
 
+const VRCHAT_HOSTS: [&str; 4] = ["api.vrchat.cloud", "assets.vrchat.com", "files.vrchat.cloud", "vrchat.com"];
+
+/// An https link on one of VRChat's hosts (or a subdomain): the only places the session cookie may go.
+pub fn is_vrchat_url(url: &str) -> bool {
+    let Some(host) = url.strip_prefix("https://").and_then(|r| r.split(['/', '?', '#']).next()) else { return false };
+    VRCHAT_HOSTS.iter().any(|h| host == *h || host.ends_with(&format!(".{h}")))
+}
+
 fn rate_limited() -> Error {
     Error::Api { status: 429, message: RATE_LIMITED.into() }
 }
@@ -440,6 +448,9 @@ impl Api {
     /// These don't share the API's connection slots (the `nximg` handler keeps its own); inside
     /// a job, one on the API host waits for the job's limiter. The cookie is dropped on the cross-host redirect to the CDN.
     pub async fn fetch_bytes(&self, url: &str) -> Result<(Option<String>, Vec<u8>)> {
+        if !is_vrchat_url(url) {
+            return Err(Error::Other("Only VRChat images can be downloaded.".into()));
+        }
         if url.starts_with("https://api.vrchat.cloud/") {
             if let Some(job) = ratelimit::current() {
                 job.limiter.wait().await;
@@ -537,6 +548,15 @@ mod request_tests {
         assert!(!should_remember(404, "avatars/avtr_1"));
         assert!(should_remember(403, "avatars/avtr_1"));
         assert_eq!(failed_key("/groups/grp_1?includeRoles=true"), "groups/grp_1");
+    }
+
+    #[test]
+    fn the_cookie_only_goes_to_vrchat_hosts() {
+        assert!(is_vrchat_url("https://api.vrchat.cloud/api/1/file/file_x/1"));
+        assert!(is_vrchat_url("https://d348imysud55la.files.vrchat.cloud/x.png"));
+        for bad in ["https://evilvrchat.com/x", "https://vrchat.com.evil.io/x", "http://api.vrchat.cloud/x", "https://evil.io/api.vrchat.cloud"] {
+            assert!(!is_vrchat_url(bad), "{bad}");
+        }
     }
 
     #[test]

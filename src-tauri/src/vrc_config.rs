@@ -55,7 +55,10 @@ pub fn set_photo_dir(path: &PathBuf, dir: Option<&str>) -> Result<()> {
     }
     let mut text = serde_json::to_string_pretty(&Value::Object(map))?;
     text.push('\n');
-    std::fs::write(path, text)?;
+    // Write a copy and swap it in, so a crash never leaves VRChat a half-written config.
+    let tmp = path.with_extension("json.nexus-tmp");
+    std::fs::write(&tmp, text)?;
+    std::fs::rename(&tmp, path)?;
     Ok(())
 }
 

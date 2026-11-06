@@ -49,7 +49,7 @@ pub fn run() {
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
             // Everything personal is encrypted at rest with a key from Windows Credential Manager.
-            let (master, _) = vault::master_key()?;
+            let master = vault::master_key()?;
             vault::init_images(&master);
             let db = db::Db::open(&dir.join("nexus.db"), &vault::database_key(&master))?;
             images::forget_plain_cache(app.handle());
