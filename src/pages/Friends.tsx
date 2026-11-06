@@ -103,7 +103,7 @@ export function Friends() {
             { value: "recent", label: "Recent" },
           ]}
         />
-        <RefreshButton cooldownKey="friends" noun="friends list" run={ipc.refreshFriends} invalidate={[]} />
+        <RefreshButton refreshKey="friends" noun="friends list" run={ipc.refreshFriends} invalidate={[]} />
       </PageHeader>
 
       <div className="mb-4 flex flex-wrap items-center gap-2">

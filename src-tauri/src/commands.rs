@@ -196,15 +196,9 @@ pub fn friends_list(app: AppHandle) -> Value {
 }
 
 #[tauri::command]
-pub async fn friends_refresh(app: AppHandle) -> Result<RefreshResult> {
-    // A full list refresh costs several requests (account, every friends page, favorites).
-    const COOLDOWN: std::time::Duration = std::time::Duration::from_secs(60);
-    if let Some(wait) = claim_refresh_for("friends", COOLDOWN) {
-        return Ok(wait);
-    }
+pub async fn friends_refresh(app: AppHandle) -> Result<()> {
     sync::refresh_friends(&app).await?;
-    sync::load_favorites(&app).await?;
-    Ok(RefreshResult { refreshed: true, retry_in_ms: COOLDOWN.as_millis() as u64 })
+    sync::load_favorites(&app).await
 }
 
 #[tauri::command]
@@ -493,40 +487,9 @@ pub async fn avatar_lists(app: AppHandle) -> Result<Value> {
     app.state::<AppState>().api.get("favorite/groups", &[("type", "avatar".into()), ("n", "50".into())]).await
 }
 
-const REFRESH_COOLDOWN: std::time::Duration = std::time::Duration::from_secs(30);
-static LAST_REFRESH: std::sync::LazyLock<parking_lot::Mutex<HashMap<String, std::time::Instant>>> =
-    std::sync::LazyLock::new(Default::default);
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RefreshResult {
-    /// False when the request was ignored because of the cooldown.
-    pub refreshed: bool,
-    /// How long until this profile may be refreshed again.
-    pub retry_in_ms: u64,
-}
-
-/// Claim the refresh slot for `key`, or return the "try again later" result if it's cooling down.
-/// Claimed before any await so concurrent clicks are rejected too.
-fn claim_refresh(key: &str) -> Option<RefreshResult> {
-    claim_refresh_for(key, REFRESH_COOLDOWN)
-}
-
-fn claim_refresh_for(key: &str, cooldown: std::time::Duration) -> Option<RefreshResult> {
-    let mut last = LAST_REFRESH.lock();
-    if let Some(t) = last.get(key) {
-        let elapsed = t.elapsed();
-        if elapsed < cooldown {
-            return Some(RefreshResult { refreshed: false, retry_in_ms: (cooldown - elapsed).as_millis() as u64 });
-        }
-    }
-    last.insert(key.to_string(), std::time::Instant::now());
-    None
-}
-
-/// On-demand world/group refresh, with the same per-item 30 s cooldown as profiles.
+/// On-demand world/group refresh.
 #[tauri::command]
-pub async fn entity_refresh(app: AppHandle, kind: String, id: String) -> Result<RefreshResult> {
+pub async fn entity_refresh(app: AppHandle, kind: String, id: String) -> Result<()> {
     let prefix = match kind.as_str() {
         "world" => "wrld_",
         "group" => "grp_",
@@ -534,9 +497,6 @@ pub async fn entity_refresh(app: AppHandle, kind: String, id: String) -> Result<
     };
     if !id.starts_with(prefix) {
         return Err(Error::Other("Invalid id.".into()));
-    }
-    if let Some(wait) = claim_refresh(&id) {
-        return Ok(wait);
     }
     match kind.as_str() {
         "world" => {
@@ -546,18 +506,14 @@ pub async fn entity_refresh(app: AppHandle, kind: String, id: String) -> Result<
             sync::cached(&app, "group", &id, &format!("groups/{id}?includeRoles=true"), 0, true).await?;
         }
     }
-    Ok(RefreshResult { refreshed: true, retry_in_ms: REFRESH_COOLDOWN.as_millis() as u64 })
+    Ok(())
 }
 
-/// On-demand profile refresh. At most once per user per 30 s, enforced here so spamming the
-/// button (or anything else) can never turn into a burst of VRChat API calls.
+/// On-demand profile refresh.
 #[tauri::command]
-pub async fn profile_refresh(app: AppHandle, user_id: String) -> Result<RefreshResult> {
+pub async fn profile_refresh(app: AppHandle, user_id: String) -> Result<()> {
     if !user_id.starts_with("usr_") {
         return Err(Error::Other("Not a user id.".into()));
-    }
-    if let Some(wait) = claim_refresh(&user_id) {
-        return Ok(wait);
     }
 
     let st = app.state::<AppState>();
@@ -596,7 +552,7 @@ pub async fn profile_refresh(app: AppHandle, user_id: String) -> Result<RefreshR
         sync::apply_friend(&app, &user_id, patch, state.as_deref(), None);
     }
 
-    Ok(RefreshResult { refreshed: true, retry_in_ms: REFRESH_COOLDOWN.as_millis() as u64 })
+    Ok(())
 }
 
 #[tauri::command]
@@ -604,14 +560,14 @@ pub async fn user_groups(app: AppHandle, user_id: String) -> Result<Value> {
     sync::cached(&app, "groups", &user_id, &format!("users/{user_id}/groups"), 600_000, false).await
 }
 
-/// `background` is for lookups in bulk (online counts for a whole group list), so they can't
-/// hold up anything you open meanwhile.
+/// `background` is for lookups in bulk (online counts for a whole group list), which are paced
+/// as a bulk job.
 #[tauri::command]
 pub async fn group_get(app: AppHandle, group_id: String, background: Option<bool>) -> Result<Value> {
     let path = format!("groups/{group_id}?includeRoles=true");
     let get = sync::cached(&app, "group", &group_id, &path, 600_000, false);
     if background.unwrap_or(false) {
-        crate::api::background(get).await
+        crate::ratelimit::bulk(get).await
     } else {
         get.await
     }
@@ -716,13 +672,6 @@ pub async fn my_group_instances(app: AppHandle) -> Result<Value> {
         }
         Err(e) => Err(e),
     }
-}
-
-/// Rate-limited "refresh now" for the Group Instances page (the page reloads after this succeeds).
-#[tauri::command]
-pub fn my_group_instances_refresh() -> RefreshResult {
-    claim_refresh_for("group-instances", REFRESH_COOLDOWN)
-        .unwrap_or(RefreshResult { refreshed: true, retry_in_ms: REFRESH_COOLDOWN.as_millis() as u64 })
 }
 
 /// Keep the names and pictures of the people in a members list for the game log.
@@ -1533,8 +1482,7 @@ fn show_hide_file(app: &AppHandle) -> Result<std::path::PathBuf> {
 pub async fn moderations_of(app: AppHandle, user_id: String) -> Result<Value> {
     check_path_id(&user_id, "user")?;
     let st = app.state::<AppState>();
-    // Only decides which badges a profile shows, so it shouldn't hold up anything else.
-    let res = crate::api::background(st.api.get("auth/user/playermoderations", &[("targetUserId", user_id.clone())])).await?;
+    let res = st.api.get("auth/user/playermoderations", &[("targetUserId", user_id.clone())]).await?;
     let mut list: Vec<Value> = res
         .as_array()
         .into_iter()

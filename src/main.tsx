@@ -8,8 +8,8 @@ import "./index.css";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // The backend already waits out rate limits and retries VRChat's hiccups, so asking again
-      // here would only add requests. A dropped connection is the one thing worth another go.
+      // The backend already retries VRChat's hiccups, and a rate limit is only made worse by asking
+      // again, so the one thing worth another go here is a dropped connection.
       retry: (failures, error) => failures < 1 && errorText(error).startsWith("Network error"),
       retryDelay: 5_000,
       refetchOnWindowFocus: false,

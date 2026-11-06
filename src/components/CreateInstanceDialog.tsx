@@ -150,7 +150,7 @@ function CreateInstance({ world, onDone, onCreated }: { world: World; onDone: ()
 
 /**
  * Your groups whose role lets you open instances, owned ones first. The group list carries no
- * permissions, so each group's details load in the background lane once you choose "Group".
+ * permissions, so each group's details load as a bulk job once you choose "Group".
  */
 function useInstanceGroups(enabled: boolean) {
   const meId = useAuth((s) => s.user?.id);

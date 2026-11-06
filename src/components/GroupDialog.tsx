@@ -230,7 +230,7 @@ function Identity({ g, perms, requests, onTool }: { g: VrcGroupDetail; perms: Gr
           {g.isVerified && <BadgeCheck className="size-4 shrink-0 text-sky-400" />}
           <span className="ml-auto shrink-0">
             <RefreshButton
-              cooldownKey={g.id}
+              refreshKey={g.id}
               noun="group"
               run={() => ipc.refreshEntity("group", g.id)}
               invalidate={[["group", g.id], ["group-posts", g.id], ["group-instances", g.id], ["group-members", g.id]]}

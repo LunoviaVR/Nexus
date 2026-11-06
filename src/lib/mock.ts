@@ -159,7 +159,6 @@ let mockPosts = [
   { id: "gpst_1", title: "Movie night Friday!", text: "Join us in Movie & Chill at 9pm.", createdAt: new Date(now - 86400000).toISOString(), imageUrl: img("post", 300, 200), visibility: "group" },
 ];
 let mockGroupInstances = [{ instanceId: "4242~group(grp_1)~groupAccessType(public)", location: `${W(3)}:4242~group(grp_1)~groupAccessType(public)`, memberCount: 12, world: worlds[3] }];
-const mockRefreshed = new Map<string, number>();
 // "Spooky" (avatars3) is full, to exercise the per-list cap.
 let mockAvatarFavs: { id: string; favoriteId: string; tags: string[]; type?: string }[] = [
   ...["usr_0", "usr_3", "usr_10"].map((id, i) => ({ id: `fvrt_f${i}`, favoriteId: id, tags: ["group_0"], type: "friend" })),
@@ -459,8 +458,6 @@ export function installMock() {
             gi(5, 6666, 1, "plus", "use", 22, 64, { ageGate: true }),
           ];
         }
-        case "my_group_instances_refresh":
-          return { refreshed: true, retryInMs: 30_000 };
         case "group_members_search":
           return friends.filter((f) => f.displayName.toLowerCase().includes(String(a.query).toLowerCase())).map((f, i) => ({ id: `gs_${i}`, roleIds: ["r3"], user: { id: f.id, displayName: f.displayName, iconUrl: f.currentAvatarThumbnailImageUrl } }));
         case "group_posts":
@@ -550,17 +547,9 @@ export function installMock() {
           return { ...me };
         }
         case "friends_refresh":
-          if (Date.now() - (mockRefreshed.get("friends") ?? 0) < 60_000) return { refreshed: false, retryInMs: 60_000 - (Date.now() - (mockRefreshed.get("friends") ?? 0)) };
-          mockRefreshed.set("friends", Date.now());
-          return { refreshed: true, retryInMs: 60_000 };
         case "profile_refresh":
-        case "entity_refresh": {
-          const id = String(a.userId ?? a.id);
-          const last = mockRefreshed.get(id) ?? 0;
-          if (Date.now() - last < 30_000) return { refreshed: false, retryInMs: 30_000 - (Date.now() - last) };
-          mockRefreshed.set(id, Date.now());
-          return { refreshed: true, retryInMs: 30_000 };
-        }
+        case "entity_refresh":
+          return new Promise((r) => setTimeout(r, 600));
         case "watch_list":
           return mockWatched;
         case "watch_set": {

@@ -5,7 +5,6 @@
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::OnceLock;
-use std::time::Duration;
 
 use serde_json::Value;
 use tauri::{AppHandle, Manager};
@@ -77,11 +76,10 @@ pub fn spawn(app: AppHandle) {
             if seen.len() > 200 {
                 seen.pop_front();
             }
-            if let Err(e) = crate::api::background(handle(&app, job)).await {
+            // These come in bursts when joining a busy instance, so they're paced as a bulk job.
+            if let Err(e) = crate::ratelimit::bulk(handle(&app, job)).await {
                 eprintln!("ugc save failed: {e}");
             }
-            // Be gentle: these come in bursts when joining a busy instance.
-            tokio::time::sleep(Duration::from_millis(1500)).await;
         }
     });
 }

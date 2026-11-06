@@ -213,7 +213,6 @@ const inFlight = new Set<string>();
 
 /**
  * Run a social action once at a time per target, with a "sending" toast that turns into the result.
- * If VRChat is rate limiting, the request waits it out first, so the toast keeps you informed.
  */
 export async function socialAction(key: string, pending: string, done: string, run: () => Promise<unknown>): Promise<boolean> {
   if (inFlight.has(key)) return false;

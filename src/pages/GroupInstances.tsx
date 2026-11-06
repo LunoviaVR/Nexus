@@ -119,9 +119,9 @@ export function GroupInstances() {
           ]}
         />
         <RefreshButton
-          cooldownKey="group-instances"
+          refreshKey="group-instances"
           noun="group instances"
-          run={ipc.refreshMyGroupInstances}
+          run={async () => {}}
           invalidate={[["my-group-instances"]]}
         />
       </PageHeader>

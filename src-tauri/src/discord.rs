@@ -35,9 +35,9 @@ const LOOKUP_RETRY: Duration = Duration::from_secs(60);
 /// The longest a lookup may hold up the activity; past that it's retried later.
 const LOOKUP_WAIT: Duration = Duration::from_secs(15);
 
-/// Run a VRChat lookup from this thread in the background lane, giving up after `LOOKUP_WAIT`.
+/// Run a VRChat lookup from this thread as a bulk job, giving up after `LOOKUP_WAIT`.
 fn block_on_briefly<F: std::future::Future>(fut: F) -> Option<F::Output> {
-    tauri::async_runtime::block_on(async { tokio::time::timeout(LOOKUP_WAIT, crate::api::background(fut)).await.ok() })
+    tauri::async_runtime::block_on(async { tokio::time::timeout(LOOKUP_WAIT, crate::ratelimit::bulk(fut)).await.ok() })
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]

@@ -79,7 +79,7 @@ export const ipc = {
 
   me: () => invoke<CurrentUser | null>("me_get"),
   friends: () => invoke<{ friends: VrcUser[]; favorites: string[] }>("friends_list"),
-  refreshFriends: () => invoke<{ refreshed: boolean; retryInMs: number }>("friends_refresh"),
+  refreshFriends: () => invoke<void>("friends_refresh"),
   user: (userId: string, force = false) => invoke<VrcUser>("user_get", { userId, force }),
   usersBrief: (ids: string[], maxAgeMs?: number) => invoke<Record<string, UserBrief>>("users_brief", { ids, maxAgeMs: maxAgeMs ?? null }),
   profile: (userId: string, force = false) => invoke<VrcProfile>("profile_get", { userId, force }),
@@ -90,13 +90,12 @@ export const ipc = {
   representGroup: (groupId: string, representing: boolean) => invoke<void>("group_represent", { groupId, representing }),
   icons: () => invoke<VrcFile[]>("icons_list"),
   uploadIcon: (data: string) => invoke<VrcFile>("icon_upload", { data }),
-  refreshProfile: (userId: string) => invoke<{ refreshed: boolean; retryInMs: number }>("profile_refresh", { userId }),
-  refreshEntity: (kind: "world" | "group", id: string) =>
-    invoke<{ refreshed: boolean; retryInMs: number }>("entity_refresh", { kind, id }),
+  refreshProfile: (userId: string) => invoke<void>("profile_refresh", { userId }),
+  refreshEntity: (kind: "world" | "group", id: string) => invoke<void>("entity_refresh", { kind, id }),
   userGroups: (userId: string) => invoke<VrcGroup[]>("user_groups", { userId }),
   userMutuals: (userId: string) =>
     invoke<{ counts: { friends?: number; groups?: number }; friends: VrcUser[] }>("user_mutuals", { userId }),
-  /** `background`: one of many lookups at once, which shouldn't hold up anything you open. */
+  /** `background`: one of many lookups at once, paced as a bulk job. */
   group: (groupId: string, background = false) => invoke<VrcGroupDetail>("group_get", { groupId, background }),
   groupInstances: (groupId: string) => invoke<VrcGroupInstance[]>("group_instances", { groupId }),
   searchGroups: (query: string, offset = 0) => invoke<VrcGroupDetail[]>("groups_search", { query, offset }),
@@ -104,7 +103,6 @@ export const ipc = {
   leaveGroup: (groupId: string) => invoke<void>("group_leave", { groupId }),
   cancelGroupRequest: (groupId: string) => invoke<void>("group_cancel_request", { groupId }),
   myGroupInstances: () => invoke<VrcGroupInstance[]>("my_group_instances"),
-  refreshMyGroupInstances: () => invoke<{ refreshed: boolean; retryInMs: number }>("my_group_instances_refresh"),
   groupMembers: (groupId: string, offset = 0) => invoke<VrcGroupMember[]>("group_members", { groupId, offset }),
   searchGroupMembers: (groupId: string, query: string) => invoke<VrcGroupMember[]>("group_members_search", { groupId, query }),
   groupPosts: (groupId: string) => invoke<{ posts: VrcGroupPost[]; total: number }>("group_posts", { groupId }),

@@ -10,6 +10,7 @@ mod local_moderation;
 mod location;
 mod people;
 mod pipeline;
+mod ratelimit;
 mod session;
 mod settings;
 mod state;
@@ -114,7 +115,6 @@ pub fn run() {
             commands::group_leave,
             commands::group_cancel_request,
             commands::my_group_instances,
-            commands::my_group_instances_refresh,
             commands::group_members_search,
             commands::group_posts,
             commands::group_update,

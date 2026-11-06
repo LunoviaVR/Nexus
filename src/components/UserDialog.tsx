@@ -470,7 +470,7 @@ function Hero({ u, p, isMe, me }: { u: VrcUser; p?: VrcProfile; isMe: boolean; m
         </div>
         <div className="flex shrink-0 items-center gap-1.5 pb-1.5">
           <RefreshButton
-            cooldownKey={u.id}
+            refreshKey={u.id}
             noun="profile"
             run={() => ipc.refreshProfile(u.id)}
             invalidate={[["user", u.id], ["profile", u.id], ["history", u.id], ["groups", u.id], ["mutuals", u.id], ["user-worlds", u.id]]}
@@ -1020,7 +1020,7 @@ export function SortableGroups({
   const meId = useAuth((s) => s.user?.id);
   const ids = all.map((g) => g.groupId ?? g.id ?? "").filter(Boolean);
   // The group list has no online counts; fetch details only once someone asks for that sort,
-  // in the background lane so a long list can't hold up anything else you open meanwhile.
+  // as a bulk job, paced at 5 a second, so a long list doesn't burst at VRChat.
   const details = useQueries({
     queries: ids.map((id) => ({
       queryKey: ["group", id],

@@ -1,7 +1,7 @@
 //! Names and pictures for people who aren't your friends: players in your instance and in old
 //! game log sessions. Whatever VRChat already sent us (friend lists, profiles, search results,
 //! group members) is kept, so most people need no request at all; the rest are looked up one at
-//! a time in the background lane, the most recently asked-for first, and announced with a
+//! a time as a bulk job (see `ratelimit`), the most recently asked-for first, and announced with a
 //! `user:brief` event as they arrive.
 
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -114,7 +114,7 @@ fn want(app: &AppHandle, ids: Vec<String>) {
     if !*running && !order.is_empty() {
         *running = true;
         let app = app.clone();
-        tauri::async_runtime::spawn(crate::api::background(work(app)));
+        tauri::async_runtime::spawn(crate::ratelimit::bulk(work(app)));
     }
 }
 

@@ -364,7 +364,7 @@ impl Tracker {
                 if self.live && self.world_name.is_none() {
                     // Fill the name from the API if the log line hasn't shown up.
                     let (a, row, l) = (app.clone(), self.loc_row, new_loc);
-                    tauri::async_runtime::spawn(crate::api::background(async move {
+                    tauri::async_runtime::spawn(crate::ratelimit::bulk(async move {
                         if let (Some(row), Some(name)) = (row, sync::world_name_for(&a, &l).await) {
                             let _ = a.state::<AppState>().db.gl_location_set_name(row, &name);
                         }

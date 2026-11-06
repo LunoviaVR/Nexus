@@ -138,7 +138,7 @@ export function FriendsRail() {
             className="h-8 w-full rounded-lg border border-line bg-panel-2 pl-8 pr-2 text-[13px] outline-none placeholder:text-subtle focus:border-accent"
           />
         </div>
-        <RefreshButton cooldownKey="friends" noun="friends list" run={ipc.refreshFriends} invalidate={[]} />
+        <RefreshButton refreshKey="friends" noun="friends list" run={ipc.refreshFriends} invalidate={[]} />
       </div>
       <div className="flex-1 overflow-y-auto px-1 pb-3">
         <Group title="Favorites" count={view.favs.length}>

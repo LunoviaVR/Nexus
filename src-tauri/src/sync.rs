@@ -180,7 +180,7 @@ pub async fn world_name_quick(app: &AppHandle, loc: &str) -> Option<String> {
         if let Some(name) = w["name"].as_str() {
             if now_ms() - ts >= TTL_MS {
                 let (a, wid) = (app.clone(), wid.clone());
-                tauri::async_runtime::spawn(crate::api::background(async move {
+                tauri::async_runtime::spawn(crate::ratelimit::bulk(async move {
                     let _ = world(&a, &wid, false).await;
                 }));
             }
@@ -188,8 +188,8 @@ pub async fn world_name_quick(app: &AppHandle, loc: &str) -> Option<String> {
         }
     }
     let a = app.clone();
-    // A spawned task doesn't inherit the caller's lane; this is upkeep either way.
-    let lookup = tauri::async_runtime::spawn(crate::api::background(async move { world(&a, &wid, false).await.ok() }));
+    // A spawned task doesn't inherit the caller's job; this is upkeep either way.
+    let lookup = tauri::async_runtime::spawn(crate::ratelimit::bulk(async move { world(&a, &wid, false).await.ok() }));
     let w = tokio::time::timeout(Duration::from_secs(3), lookup).await.ok()?.ok()??;
     w["name"].as_str().map(String::from)
 }
@@ -340,10 +340,10 @@ pub fn window_focused(app: &AppHandle) {
     }
 }
 
-/// Does what the refresh button does, on its own. Runs in the background lane, so it only uses
-/// spare capacity and sits out any rate limit.
+/// Does what the refresh button does, on its own, as a bulk job (the friends pages keep their
+/// own pace).
 pub fn spawn_friend_resync(app: AppHandle) -> tauri::async_runtime::JoinHandle<()> {
-    tauri::async_runtime::spawn(crate::api::background(async move {
+    tauri::async_runtime::spawn(crate::ratelimit::bulk(async move {
         loop {
             tokio::select! {
                 _ = RESYNC_WANTED.notified() => tokio::time::sleep(RESYNC_GAP.saturating_sub(since_last_sync())).await,
@@ -698,7 +698,7 @@ pub fn check_profile_soon(app: &AppHandle, user_id: &str) {
         last.insert(user_id.to_string(), Instant::now());
     }
     let (app, id) = (app.clone(), user_id.to_string());
-    tauri::async_runtime::spawn(crate::api::background(async move {
+    tauri::async_runtime::spawn(crate::ratelimit::bulk(async move {
         if let Err(e) = fetch_profile(&app, &id).await {
             eprintln!("profile check for {id} failed: {e}");
         }
@@ -742,9 +742,9 @@ fn next_sweep_target(app: &AppHandle) -> Option<String> {
     best.map(|(_, id)| id.clone())
 }
 
-/// Runs in the background lane, so it only uses spare capacity and sits out any rate limit.
+/// Runs as a bulk job, on top of its own pause between profiles.
 pub fn spawn_bio_sweep(app: AppHandle) -> tauri::async_runtime::JoinHandle<()> {
-    tauri::async_runtime::spawn(crate::api::background(async move {
+    tauri::async_runtime::spawn(crate::ratelimit::bulk(async move {
         // Let the login burst (friends list, favorites, pipeline) settle first.
         tokio::time::sleep(Duration::from_secs(30)).await;
         loop {

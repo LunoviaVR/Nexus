@@ -176,7 +176,7 @@ function WorldBody({ worldId, focus }: { worldId: string; focus: string | null }
         {w.updated_at && <Fact icon={<CalendarDays className="size-3.5" />}>Updated {new Date(w.updated_at).toLocaleDateString()}</Fact>}
         <div className="ml-auto flex items-center gap-1">
           <RefreshButton
-            cooldownKey={w.id}
+            refreshKey={w.id}
             noun="world"
             run={() => ipc.refreshEntity("world", w.id)}
             invalidate={[["world", w.id], ["instance"]]}
