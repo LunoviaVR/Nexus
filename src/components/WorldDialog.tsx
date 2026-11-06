@@ -2,7 +2,7 @@ import { Copy, ExternalLink, Globe, Heart, LogIn, Plus, Send, Users, Eye, Calend
 import { useMemo, useState, type ReactNode } from "react";
 import { toast } from "@/lib/toast";
 import { errorText, ipc } from "@/lib/ipc";
-import { parseLocation, REGION_LABEL } from "@/lib/location";
+import { instancePlayers, parseLocation, REGION_LABEL } from "@/lib/location";
 import { useInstance, useWorld } from "@/lib/queries";
 import type { VrcUser } from "@/lib/types";
 import { useFriends } from "@/stores/friends";
@@ -50,7 +50,7 @@ function InstanceRow({ row, focus }: { row: Row; focus: boolean }) {
   const p = parseLocation(row.location);
   const inst = useInstance(focus ? row.location : null);
   const openUser = useUi((s) => s.openUser);
-  const count = inst.data?.n_users ?? inst.data?.userCount ?? row.count;
+  const count = instancePlayers(inst.data, row.friends.length) ?? row.count;
   return (
     <div className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 ${focus ? "border-accent/60 bg-accent-soft" : "border-line bg-panel-2/40"}`}>
       <div className="min-w-0 flex-1">

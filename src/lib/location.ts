@@ -112,3 +112,16 @@ export function sameInstance(a?: string | null, b?: string | null): boolean {
   if (!a || !b) return false;
   return a.split("~")[0] === b.split("~")[0];
 }
+
+/**
+ * Players in an instance. VRChat can report 0 in `n_users` (or every count) while people are
+ * in it, so take the largest count it gives, never below the players we know are there.
+ */
+export function instancePlayers(
+  inst: { n_users?: number; userCount?: number; platforms?: Record<string, number> } | undefined,
+  known = 0,
+): number | undefined {
+  if (!inst) return undefined;
+  const byPlatform = Object.values(inst.platforms ?? {}).reduce((sum, n) => sum + (n || 0), 0);
+  return Math.max(inst.n_users ?? 0, inst.userCount ?? 0, byPlatform, known);
+}

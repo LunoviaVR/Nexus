@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { isJoinable, parseLocation, sameInstance } from "./location";
+import { instancePlayers, isJoinable, parseLocation, sameInstance } from "./location";
+
+describe("instancePlayers", () => {
+  it("doesn't let a zero count hide the real one", () => {
+    expect(instancePlayers(undefined, 3)).toBeUndefined();
+    expect(instancePlayers({ n_users: 0, userCount: 7 })).toBe(7);
+    expect(instancePlayers({ n_users: 0, userCount: 0, platforms: { standalonewindows: 4, android: 2 } })).toBe(6);
+    expect(instancePlayers({ n_users: 0, userCount: 0 }, 2)).toBe(2);
+    expect(instancePlayers({ n_users: 9, userCount: 9 }, 2)).toBe(9);
+  });
+});
 
 const W = "wrld_4cf554b4-430c-4f8f-b53e-1f294eed230b";
 

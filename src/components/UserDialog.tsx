@@ -32,7 +32,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "@/lib/toast";
 import { ago, cn, dateTime, duration, platformLabel, STATUS_LABEL, userImage } from "@/lib/format";
 import { errorText, ipc } from "@/lib/ipc";
-import { parseLocation, sameInstance } from "@/lib/location";
+import { instancePlayers, parseLocation, sameInstance } from "@/lib/location";
 import { useAvatar, useInstance, useUser, useWorld } from "@/lib/queries";
 import { useNow } from "@/lib/useNow";
 import type { CurrentUser, ModerationKind, UserHistory, VrcBadge, VrcGroup, VrcProfile, VrcUser, World } from "@/lib/types";
@@ -618,7 +618,9 @@ function Presence({ u, location, isMe }: { u: VrcUser; location?: string | null;
   const inst = useInstance(loc.kind === "instance" && loc.instanceId ? location : null);
   // Your own instance: the game log's player list is live, VRChat's count lags.
   const live = useLive((s) => s.instance);
-  const players = isMe && sameInstance(live.location, location) && live.players.length ? live.players.length : (inst.data?.n_users ?? inst.data?.userCount);
+  const friendsHere = useFriends((s) => Object.values(s.byId).filter((f) => f.id !== u.id && sameInstance(f.location, location)).length);
+  const players =
+    sameInstance(live.location, location) && live.players.length ? live.players.length : instancePlayers(inst.data, friendsHere + 1);
   const inWorld = (location ?? "").startsWith("wrld_") || u.state === "online";
 
   if (!inWorld) {
