@@ -1,46 +1,18 @@
 import { Gamepad2, LogOut, Search, Users } from "lucide-react";
 import { useMemo, useState } from "react";
-import { InstanceBadge, PersonAvatar, TrustLabel } from "@/components/people";
+import { InstanceBadge, PersonAvatar, PlayerRow } from "@/components/people";
 import { Card, Empty, Img, Input, PageHeader, SectionTitle, Segmented } from "@/components/ui";
 import { clock, cn, duration } from "@/lib/format";
 import { parseLocation } from "@/lib/location";
-import { usePerson, useWorld } from "@/lib/queries";
+import { useWorld } from "@/lib/queries";
 import { useNow } from "@/lib/useNow";
-import type { Player, VrcUser } from "@/lib/types";
+import type { Player } from "@/lib/types";
 import { useAuth } from "@/stores/auth";
 import { useFriends } from "@/stores/friends";
 import { useLive } from "@/stores/live";
 import { useUi } from "@/stores/ui";
 
 type Sort = "joined" | "name";
-
-function PlayerRow({ pl, friend, me, now }: { pl: Player; friend?: VrcUser; me: boolean; now: number }) {
-  const openUser = useUi((s) => s.openUser);
-  // Everyone gets a picture: you and friends from live state, anyone else looked up once.
-  const person = usePerson(pl.userId, true);
-  return (
-    <button
-      onClick={() => pl.userId && openUser(pl.userId)}
-      disabled={!pl.userId}
-      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left enabled:hover:bg-hover enabled:cursor-pointer"
-    >
-      <PersonAvatar userId={pl.userId} name={pl.displayName} size={32} dot={!!friend || me} fresh />
-      <div className="min-w-0 flex-1 leading-tight">
-        <div className={cn("truncate text-[13px] font-medium", friend && "text-accent")}>
-          {pl.displayName}
-          {me && <span className="ml-1.5 font-normal text-subtle">(you)</span>}
-        </div>
-        <div className="truncate text-[11.5px] text-muted">
-          {friend ? friend.statusDescription || "Friend" : me ? "That's you" : person?.tags ? <TrustLabel tags={person.tags} /> : "Not a friend"}
-        </div>
-      </div>
-      <div className="shrink-0 text-right leading-tight">
-        <div className="text-[12.5px] tabular-nums">{duration(now - pl.joinedTs)}</div>
-        <div className="text-[11px] tabular-nums text-subtle">joined {clock(pl.joinedTs)}</div>
-      </div>
-    </button>
-  );
-}
 
 /** Everyone in the instance you're in right now, read live from VRChat's log. */
 export function Players() {

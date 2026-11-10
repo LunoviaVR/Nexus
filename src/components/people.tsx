@@ -2,13 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { Crown, Globe, Lock, Plane, Users } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { ACCESS_LABEL, parseLocation, REGION_LABEL, isJoinable } from "@/lib/location";
-import { cn, presenceColor, STATUS_LABEL, trustRank, userImage } from "@/lib/format";
+import { clock, cn, duration, presenceColor, STATUS_LABEL, trustRank, userImage } from "@/lib/format";
 import { errorText, ipc } from "@/lib/ipc";
 import { usePerson, useWorldName } from "@/lib/queries";
 import { useAuth } from "@/stores/auth";
 import { useFriends } from "@/stores/friends";
 import { useUi } from "@/stores/ui";
-import type { VrcUser } from "@/lib/types";
+import type { Player, VrcUser } from "@/lib/types";
 import { Img, Tip } from "./ui";
 
 export function StatusDot({ user, className }: { user?: Partial<VrcUser>; className?: string }) {
@@ -73,6 +73,35 @@ export function PersonAvatar({
   if (!userImage(person)) return <Initial name={name} size={size} />;
   const live = !!person && "state" in person && !!person.state;
   return <UserAvatar user={{ displayName: name, ...person }} size={size} dot={dot && live} />;
+}
+
+/** One person in the instance you're in: picture, who they are to you, and how long they've been there. */
+export function PlayerRow({ pl, friend, me, now }: { pl: Player; friend?: VrcUser; me: boolean; now: number }) {
+  const openUser = useUi((s) => s.openUser);
+  // Everyone gets a picture: you and friends from live state, anyone else looked up once.
+  const person = usePerson(pl.userId, true);
+  return (
+    <button
+      onClick={() => pl.userId && openUser(pl.userId)}
+      disabled={!pl.userId}
+      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left enabled:hover:bg-hover enabled:cursor-pointer"
+    >
+      <PersonAvatar userId={pl.userId} name={pl.displayName} size={32} dot={!!friend || me} fresh />
+      <div className="min-w-0 flex-1 leading-tight">
+        <div className={cn("truncate text-[13px] font-medium", friend && "text-accent")}>
+          {pl.displayName}
+          {me && <span className="ml-1.5 font-normal text-subtle">(you)</span>}
+        </div>
+        <div className="truncate text-[11.5px] text-muted">
+          {friend ? friend.statusDescription || "Friend" : me ? "That's you" : person?.tags ? <TrustLabel tags={person.tags} /> : "Not a friend"}
+        </div>
+      </div>
+      <div className="shrink-0 text-right leading-tight">
+        <div className="text-[12.5px] tabular-nums">{duration(now - pl.joinedTs)}</div>
+        <div className="text-[11px] tabular-nums text-subtle">joined {clock(pl.joinedTs)}</div>
+      </div>
+    </button>
+  );
 }
 
 export function TrustLabel({ tags, className }: { tags?: string[]; className?: string }) {

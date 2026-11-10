@@ -1,13 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
-import { Activity, Gamepad2, Globe, MonitorSmartphone, Star, Users } from "lucide-react";
+import { Activity, ChevronRight, Gamepad2, Globe, MonitorSmartphone, Star, Users } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
 import { FeedRow } from "@/components/FeedRow";
-import { InstanceBadge, LocationLabel, UserAvatar } from "@/components/people";
+import { InstanceBadge, LocationLabel, PlayerRow, UserAvatar } from "@/components/people";
 import { Card, Empty, SectionTitle, Img } from "@/components/ui";
 import { duration, cn } from "@/lib/format";
 import { ipc } from "@/lib/ipc";
 import { parseLocation } from "@/lib/location";
 import { useWorld } from "@/lib/queries";
+import type { Player } from "@/lib/types";
 import { useNow } from "@/lib/useNow";
 import { useAuth } from "@/stores/auth";
 import { useFriends } from "@/stores/friends";
@@ -26,10 +27,14 @@ function Tile({ icon, label, value, tone, onClick }: { icon: ReactNode; label: s
   );
 }
 
+/** Rows per column on Home; the Players page has the full list. */
+const GLANCE = 5;
+
 function CurrentInstance() {
   const instance = useLive((s) => s.instance);
   const byId = useFriends((s) => s.byId);
-  const openUser = useUi((s) => s.openUser);
+  const meId = useAuth((s) => s.user?.id);
+  const go = useUi((s) => s.go);
   const openWorld = useUi((s) => s.openWorld);
   const now = useNow(15_000);
   const p = parseLocation(instance.location);
@@ -52,14 +57,32 @@ function CurrentInstance() {
     );
   }
 
-  const players = [...instance.players].sort((a, b) => Number(!!b.userId && !!byId[b.userId]) - Number(!!a.userId && !!byId[a.userId]));
-  const friendCount = players.filter((pl) => pl.userId && byId[pl.userId]).length;
+  // Newest arrivals first: at a glance, who just showed up matters most.
+  const players = [...instance.players].sort((a, b) => b.joinedTs - a.joinedTs);
+  const isFriend = (pl: Player) => !!pl.userId && !!byId[pl.userId];
+  const friends = players.filter(isFriend);
+  const others = players.filter((pl) => !isFriend(pl));
+  const hidden = Math.max(0, friends.length - GLANCE) + Math.max(0, others.length - GLANCE);
+  const column = (title: string, list: Player[], empty: string) => (
+    <div className="min-w-0">
+      <div className="px-3 pt-2">
+        <SectionTitle right={<span className="text-xs tabular-nums text-subtle">{list.length}</span>}>{title}</SectionTitle>
+      </div>
+      {list.length ? (
+        list.slice(0, GLANCE).map((pl) => (
+          <PlayerRow key={pl.displayName} pl={pl} friend={pl.userId ? byId[pl.userId] : undefined} me={!!meId && pl.userId === meId} now={now} />
+        ))
+      ) : (
+        <p className="px-3 pb-3 text-[13px] text-subtle">{empty}</p>
+      )}
+    </div>
+  );
 
   return (
     <Card className="overflow-hidden">
-      <div className="relative h-36">
+      <div className="relative h-32">
         <Img src={world.data?.imageUrl} className="absolute inset-0 size-full" />
-        <div className="absolute inset-0 bg-gradient-to-t from-panel via-panel/50 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-panel via-panel/60 to-transparent" />
         <div className="absolute bottom-3 left-5 right-5 flex items-end justify-between gap-4">
           <div className="min-w-0">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-white/80">You're in</div>
@@ -71,31 +94,28 @@ function CurrentInstance() {
               {instance.since && <span>· {duration(now - instance.since)}</span>}
             </div>
           </div>
-          <div className="shrink-0 text-right text-white">
-            <div className="text-2xl font-bold tabular-nums">{players.length}</div>
-            <div className="text-xs text-white/75">{friendCount} friends</div>
+          <div className="flex shrink-0 gap-5 text-right text-white">
+            <div>
+              <div className="text-2xl font-bold tabular-nums">{players.length}</div>
+              <div className="text-xs text-white/75">players</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold tabular-nums">{friends.length}</div>
+              <div className="text-xs text-white/75">friends</div>
+            </div>
           </div>
         </div>
       </div>
-      <div className="flex max-h-56 flex-wrap gap-1.5 overflow-y-auto p-4">
-        {players.map((pl) => {
-          const friend = pl.userId ? byId[pl.userId] : undefined;
-          return (
-            <button
-              key={pl.displayName}
-              onClick={() => pl.userId && openUser(pl.userId)}
-              className={cn(
-                "inline-flex items-center gap-2 rounded-full border py-1 pl-1 pr-3 text-[12.5px] cursor-pointer",
-                friend ? "border-accent/40 bg-accent-soft" : "border-line bg-panel-2 hover:bg-hover",
-              )}
-            >
-              {friend ? <UserAvatar user={friend} size={20} dot={false} /> : <span className="size-5 rounded-full bg-hover" />}
-              <span className="max-w-[160px] truncate">{pl.displayName}</span>
-              <span className="text-[11px] tabular-nums text-subtle">{duration(now - pl.joinedTs)}</span>
-            </button>
-          );
-        })}
+      <div className="grid gap-x-2 p-2 sm:grid-cols-2">
+        {column("Friends", friends, "No friends here.")}
+        {column("Everyone else", others, "Nobody else.")}
       </div>
+      <button
+        onClick={() => go("players")}
+        className="flex w-full items-center justify-center gap-1 border-t border-line py-2.5 text-xs text-accent hover:bg-hover cursor-pointer"
+      >
+        {hidden > 0 ? `+${hidden} more · see everyone` : "Open Players"} <ChevronRight className="size-3.5" />
+      </button>
     </Card>
   );
 }
